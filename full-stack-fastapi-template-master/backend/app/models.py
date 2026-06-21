@@ -127,3 +127,7 @@ class TokenPayload(SQLModel):
 class NewPassword(SQLModel):
     token: str
     new_password: str = Field(min_length=8, max_length=128)
+
+
+# Import Moss SQLModel tables so Alembic sees them through SQLModel.metadata.
+from app.moss.models import MossConversation, MossNote  # noqa: E402, F401

@@ -1,0 +1,6 @@
+.worktrees/
+.tmp/
+**/.venv*/
+**/.venv-*/
+**/__pycache__/
+*.py[cod]
