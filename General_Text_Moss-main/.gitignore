@@ -1,0 +1,10 @@
+.venv/
+node_modules/
+.npm-cache*/
+__pycache__/
+*.py[cod]
+*.pyc.*
+.env
+.tmp/
+moss_backend/app/core/.env
+moss_backend/storage/

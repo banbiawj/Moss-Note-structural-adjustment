@@ -1,0 +1,2713 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>moss - 智能文档助手</title>
+    <link rel="stylesheet" href="/static/css/tailwind.css">
+    <link rel="stylesheet" href="/static/css/app-loading.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+    <script type="importmap">
+    {
+      "imports": {
+        "vue": "https://unpkg.com/vue@3/dist/vue.esm-browser.js",
+        "@tiptap/core": "https://esm.sh/@tiptap/core@2.2.4",
+        "@tiptap/starter-kit": "https://esm.sh/@tiptap/starter-kit@2.2.4",
+        "marked": "https://esm.sh/marked@12.0.2",
+        "dompurify": "https://esm.sh/dompurify@3.0.8"
+      }
+    }
+    </script>
+
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #fafafa; color: #171717; }
+        [v-cloak] { display: none !important; }
+
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+
+        .document-content { color: #404040; line-height: 1.8; font-weight: 400; font-size: 0.95rem; }
+        .document-content h1 { font-size: 1.8rem; font-weight: 600; color: #171717; margin-bottom: 0.5rem; margin-top: 1.5rem; letter-spacing: 0; }
+        .document-content h2 { font-size: 1.5rem; font-weight: 600; color: #171717; margin-top: 1.5rem; margin-bottom: 0.5rem; padding-bottom: 0.5rem; border-bottom: 1px solid #e5e5e5; }
+        .document-content h3 { font-size: 1.25rem; font-weight: 600; color: #262626; margin-top: 1.25rem; margin-bottom: 0.5rem; }
+        .document-content h4 { font-size: 1.1rem; font-weight: 600; color: #404040; margin-top: 1rem; margin-bottom: 0.5rem; }
+        .document-content h5 { font-size: 1rem; font-weight: 600; color: #525252; margin-top: 1rem; margin-bottom: 0.5rem; }
+        .document-content h6 { font-size: 0.95rem; font-weight: 600; color: #737373; margin-top: 1rem; margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 0; }
+        .document-content p { margin-bottom: 0.75rem; }
+        .document-content ul { list-style-type: none; padding-left: 0; margin-bottom: 1.5rem; }
+        .document-content li { position: relative; padding-left: 1rem; margin-bottom: 0.5rem; }
+        .document-content li::before { content: '•'; position: absolute; left: 0; color: #a3a3a3; font-weight: bold; }
+        .document-content strong { color: #171717; font-weight: 600; }
+        .document-content code { background-color: #f5f5f5; padding: 0.2rem 0.4rem; border-radius: 0.25rem; font-size: 0.85em; font-family: monospace; }
+        .ProseMirror:focus { outline: none; }
+        .editor-frame {
+            background: #f8fafc;
+            border-color: #d0d7de;
+            box-shadow: 0 8px 30px rgb(15 23 42 / 0.04);
+            transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
+        }
+        .editor-frame:focus-within {
+            border-color: #b8c7d6;
+            box-shadow: 0 10px 34px rgb(15 23 42 / 0.06), 0 0 0 3px rgb(148 163 184 / 0.18);
+        }
+        .editor-loading-overlay {
+            align-items: center;
+            background:
+                radial-gradient(circle at 50% 50%, rgba(255, 255, 255, .94), rgba(250, 250, 250, .9) 38%, #f7f7f7 100%);
+            color: #171717;
+            display: flex;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            inset: 0;
+            justify-content: center;
+            padding: clamp(1rem, 3vh, 1.5rem);
+            position: absolute;
+            transition: opacity .26s ease, visibility .26s ease;
+            z-index: 10;
+        }
+        .editor-loading-stage {
+            align-items: center;
+            animation: loading-stage-in .24s ease-out both;
+            display: flex;
+            gap: .875rem;
+            text-align: left;
+        }
+        .editor-loading-stage-inline {
+            flex-direction: row;
+        }
+        .editor-loading-avatar-slot {
+            flex-basis: 2.75rem;
+        }
+        .editor-loading-text {
+            color: #737373;
+            font-size: .8125rem;
+            font-weight: 500;
+            letter-spacing: .04em;
+            line-height: 1;
+            white-space: nowrap;
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .editor-loading-stage {
+                animation: none;
+                transition: none;
+            }
+        }
+
+        .chat-markdown { white-space: normal; overflow-x: auto; }
+        .chat-markdown :where(p) { margin: 0 0 0.75rem; }
+        .chat-markdown :where(p:last-child) { margin-bottom: 0; }
+        .chat-markdown :where(strong) { color: #171717; font-weight: 600; }
+        .chat-markdown :where(a) { color: #262626; text-decoration: underline; text-underline-offset: 2px; }
+        .chat-markdown :where(ul) { margin: 0.5rem 0 0.75rem; padding-left: 1.25rem; list-style: disc; }
+        .chat-markdown :where(ol) { margin: 0.5rem 0 0.75rem; padding-left: 2.5rem; list-style: decimal outside; }
+        .chat-markdown :where(li) { margin: 0.25rem 0; }
+        .chat-markdown :where(h1, h2, h3, h4) { color: #171717; font-weight: 600; line-height: 1.35; margin: 0.85rem 0 0.45rem; letter-spacing: 0; }
+        .chat-markdown :where(h1) { font-size: 1.15rem; }
+        .chat-markdown :where(h2) { font-size: 1.05rem; }
+        .chat-markdown :where(h3, h4) { font-size: 1rem; }
+        .chat-markdown :where(code) { background: #f5f5f5; border-radius: 0.25rem; color: #262626; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size: 0.86em; padding: 0.15rem 0.3rem; }
+        .chat-markdown :where(pre) { background: #f7f7f7; border: 1px solid #e5e5e5; border-radius: 0.5rem; margin: 0.75rem 0; overflow-x: auto; padding: 0.85rem; }
+        .chat-markdown :where(pre code) { background: transparent; border-radius: 0; display: block; padding: 0; white-space: pre; }
+        .chat-markdown :where(blockquote) { border-left: 3px solid #d4d4d4; color: #525252; margin: 0.75rem 0; padding-left: 0.75rem; }
+        .chat-markdown :where(table) { border-collapse: collapse; margin: 0.75rem 0; min-width: 24rem; width: 100%; }
+        .chat-markdown :where(th, td) { border: 1px solid #e5e5e5; padding: 0.45rem 0.6rem; text-align: left; vertical-align: top; }
+        .chat-markdown :where(th) { background: #f7f7f7; color: #262626; font-weight: 600; }
+        .chat-markdown :where(hr) { border: 0; border-top: 1px solid #e5e5e5; margin: 0.9rem 0; }
+
+        .chat-scroll-shell { padding-bottom: 14rem; }
+        .chat-composer {
+            bottom: calc(1.5rem + env(safe-area-inset-bottom));
+        }
+        .chat-composer-frame {
+            align-items: stretch;
+            border-radius: 1.5rem;
+        }
+        .chat-composer-input {
+            box-sizing: border-box;
+            line-height: 1.5;
+            max-height: 10rem;
+            min-height: 3rem;
+            overflow-wrap: anywhere;
+            overflow-y: auto;
+            resize: none;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .chat-composer-input::-webkit-scrollbar { display: none; }
+
+        .cursor-blink::after { content: '|'; animation: blink 1s step-start infinite; color: #171717; font-weight: 300; }
+        @keyframes blink { 50% { opacity: 0; } }
+        @keyframes popIn {
+            0% { opacity: 0; transform: translateY(-4px) scale(0.98); }
+            100% { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .animate-pop-in { animation: popIn 0.15s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+
+        .moss-waiting-avatar {
+            animation: mossWaitingAvatarBreath 1.9s ease-in-out infinite;
+            position: relative;
+        }
+        .moss-waiting-avatar-slot {
+            align-items: center;
+            display: flex;
+            flex: 0 0 2.75rem;
+            height: 2.75rem;
+            justify-content: center;
+            width: 2.75rem;
+        }
+        .moss-waiting-avatar::before {
+            animation: mossWaitingSoftHalo 1.9s ease-in-out infinite;
+            border: 1px solid rgb(23 23 23 / 0.1);
+            border-radius: 9999px;
+            content: "";
+            inset: -5px;
+            position: absolute;
+        }
+        .moss-waiting-avatar i {
+            animation: mossWaitingIconWake 1.6s ease-in-out infinite;
+            display: inline-block;
+            transform-origin: center;
+        }
+        .moss-waiting-stage-list {
+            display: grid;
+            gap: 0.8125rem;
+            max-width: 28rem;
+        }
+        .moss-waiting-stage {
+            align-items: center;
+            color: #9a9a9a;
+            display: flex;
+            font-size: 0.8125rem;
+            gap: 0.625rem;
+            min-height: 1.25rem;
+        }
+        .moss-waiting-stage-dot {
+            background: #d9d9d7;
+            border-radius: 9999px;
+            flex: 0 0 auto;
+            height: 0.4375rem;
+            width: 0.4375rem;
+        }
+        .moss-waiting-stage.is-active {
+            color: #171717;
+            font-weight: 650;
+        }
+        .moss-waiting-stage.is-active .moss-waiting-stage-dot {
+            animation: mossWaitingDotGlow 1.2s ease-in-out infinite;
+            background: #171717;
+        }
+        .moss-waiting-stage.is-done {
+            color: #525252;
+        }
+        .moss-waiting-stage.is-done .moss-waiting-stage-dot {
+            background: #b7d8c4;
+        }
+        .moss-waiting-skeleton {
+            border-top: 1px solid #eeeeec;
+            margin-top: 1.5rem;
+            max-width: 31rem;
+            padding-top: 1.125rem;
+        }
+        .moss-waiting-skeleton-line {
+            animation: mossWaitingShimmer 1.55s ease-in-out infinite;
+            background: linear-gradient(90deg, #ececea 0%, #f7f7f5 42%, #ececea 84%);
+            background-size: 220% 100%;
+            border-radius: 9999px;
+            height: 0.5rem;
+            margin-bottom: 0.625rem;
+        }
+        .moss-waiting-skeleton-line.long { width: 88%; }
+        .moss-waiting-skeleton-line.mid { width: 70%; }
+        .moss-waiting-skeleton-line.short { width: 42%; }
+        @keyframes mossWaitingAvatarBreath {
+            0%, 100% { box-shadow: 0 0 0 0 rgb(23 23 23 / 0.08); transform: scale(1); }
+            50% { box-shadow: 0 0 0 7px rgb(183 216 196 / 0.34); transform: scale(1.02); }
+        }
+        @keyframes mossWaitingSoftHalo {
+            0%, 100% { opacity: 0.35; transform: scale(0.96); }
+            50% { opacity: 0.85; transform: scale(1.04); }
+        }
+        @keyframes mossWaitingIconWake {
+            0%, 100% { color: #525252; transform: rotate(0deg) scale(1); }
+            50% { color: #171717; transform: rotate(45deg) scale(1.08); }
+        }
+        @keyframes mossWaitingDotGlow {
+            0%, 100% { box-shadow: 0 0 0 0 rgb(23 23 23 / 0.12); }
+            50% { box-shadow: 0 0 0 6px rgb(23 23 23 / 0.05); }
+        }
+        @keyframes mossWaitingShimmer {
+            0% { background-position: 120% 0; }
+            100% { background-position: -120% 0; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .moss-waiting-avatar,
+            .moss-waiting-avatar::before,
+            .moss-waiting-avatar i,
+            .moss-waiting-stage.is-active .moss-waiting-stage-dot,
+            .moss-waiting-skeleton-line {
+                animation-duration: 0.001ms !important;
+                animation-iteration-count: 1 !important;
+            }
+        }
+
+        .conversation-dropdown-menu {
+            position: fixed;
+            width: 10.5rem;
+            background: rgba(255, 255, 255, 0.96);
+            border: 1px solid rgba(229, 229, 229, 0.85);
+            border-radius: 8px;
+            box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.72), 0 4px 12px -2px rgba(0, 0, 0, 0.12), 0 12px 32px -4px rgba(0, 0, 0, 0.12);
+            padding: 6px 0;
+            z-index: 1100;
+            user-select: none;
+            opacity: 0;
+            visibility: hidden;
+            transform: scale(0.97) translateY(-4px);
+            transform-origin: top left;
+            transition: opacity 0.15s cubic-bezier(0.2, 0, 0.2, 1), transform 0.15s cubic-bezier(0.2, 0, 0.2, 1), visibility 0.15s;
+        }
+        .conversation-dropdown-menu.show {
+            opacity: 1;
+            visibility: visible;
+            transform: scale(1) translateY(0);
+        }
+        .conversation-menu-item {
+            align-items: center;
+            border: 1px solid transparent;
+            border-radius: 5px;
+            color: #404040;
+            cursor: pointer;
+            display: flex;
+            font-size: 13px;
+            gap: 8px;
+            margin: 1px 6px;
+            padding: 5px 8px;
+            transition: background-color 0.1s ease, border-color 0.1s ease, transform 0.05s ease;
+            width: calc(100% - 12px);
+        }
+        .conversation-menu-item:hover {
+            background: rgba(245, 245, 245, 0.95);
+            border-color: rgba(229, 229, 229, 0.95);
+        }
+        .conversation-menu-item:active {
+            transform: scale(0.98);
+        }
+        .conversation-menu-item:disabled {
+            color: #a3a3a3;
+            cursor: not-allowed;
+            opacity: 0.65;
+            transform: none;
+        }
+        .conversation-menu-item.danger {
+            color: #dc2626;
+        }
+        .conversation-menu-item.danger:hover:not(:disabled) {
+            background: #fef2f2;
+            border-color: #fee2e2;
+        }
+        .conversation-menu-icon {
+            align-items: center;
+            display: flex;
+            height: 18px;
+            justify-content: center;
+            width: 18px;
+            flex-shrink: 0;
+        }
+        .conversation-menu-divider {
+            background: rgba(229, 229, 229, 0.85);
+            height: 1px;
+            margin: 4px 0;
+        }
+        .conversation-delete-dialog-overlay {
+            z-index: 1200;
+        }
+
+        .resizing { user-select: none; -webkit-user-select: none; cursor: ns-resize !important; }
+    </style>
+</head>
+<body class="h-screen w-screen overflow-hidden selection:bg-black selection:text-white">
+
+<div id="app-loading" class="app-loading" role="status" aria-live="polite">
+    <div class="app-loading-stage">
+        <div class="app-loading-mark" aria-hidden="true">*</div>
+        <div class="app-loading-text">loading...</div>
+    </div>
+</div>
+
+<div id="app" v-cloak class="relative h-full w-full flex flex-col bg-[#fafafa]" :class="{'resizing': isDragging}">
+
+    <div v-if="showAIPopup"
+         class="fixed z-[200] bg-white rounded-lg shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-gray-200 p-2 flex items-center gap-3 w-[min(20rem,calc(100vw-2rem))] transform transition-all duration-200 ease-out"
+         :style="{ top: aiPopupPos.top + 'px', left: aiPopupPos.left + 'px' }">
+        <div class="w-7 h-7 rounded-full bg-gray-50 flex items-center justify-center shrink-0 border border-gray-200">
+            <i class="fa-solid fa-asterisk text-gray-500 text-[10px]"></i>
+        </div>
+        <input ref="aiPopupInputRef"
+               v-model="aiPopupInput"
+               @keyup.enter="submitAIPopup"
+               @keydown.esc="closeAIPopup"
+               @blur="closeAIPopup"
+               type="text"
+               placeholder="给 moss 发送指令"
+               class="flex-1 bg-transparent border-none outline-none text-[14px] text-gray-800 placeholder-gray-400 min-w-0">
+    </div>
+
+    <div ref="panelRef"
+         class="editor-frame fixed left-1/2 transform -translate-x-1/2 bg-white/90 backdrop-blur-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100 flex flex-col overflow-visible origin-top"
+         :class="[
+            isFullScreen ? 'rounded-none z-[100]' : 'rounded-2xl z-40',
+            isDragging ? 'transition-none' : 'transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)]'
+         ]"
+         style="will-change: width, height, top, max-width;"
+         :style="{
+            height: isFullScreen ? '100vh' : panelHeight + 'px',
+            width: isFullScreen ? '100vw' : '95%',
+            maxWidth: isFullScreen ? '100vw' : '56rem',
+            top: isFullScreen ? '0px' : '1.5rem'
+         }">
+
+        <div class="bg-white/50 px-4 md:px-6 py-4 flex justify-between items-center shrink-0 border-b border-gray-100 transition-all duration-300"
+             :class="isFullScreen ? 'rounded-none' : 'rounded-t-2xl'">
+            <div class="flex items-center gap-3 text-gray-500 min-w-0">
+                <button data-library-header-button
+                        ref="libraryButtonRef"
+                        @click="openLibrary"
+                        class="p-2 -ml-2 rounded-lg text-gray-500 hover:bg-white/70 hover:text-gray-800 transition-colors flex items-center justify-center shrink-0"
+                        title="Back to Library">
+                    <i class="fa-solid fa-chevron-left text-xs"></i>
+                </button>
+                <i class="fa-regular fa-file-lines text-gray-400"></i>
+                <div ref="conversationTreeRef" class="relative flex items-center gap-2 min-w-0" @click.stop>
+                    <span class="font-medium text-xs tracking-wider uppercase text-gray-500 truncate">{{ documentTitle }}</span>
+                </div>
+            </div>
+            <div data-header-toolbar-actions class="flex gap-2 items-center shrink-0">
+                <input ref="fileInputRef" type="file" accept=".txt,.md,.markdown,.docx,.pdf" class="hidden" @change="handleUpload">
+                <button data-header-upload-button
+                        @click="triggerUpload"
+                        class="text-xs bg-white border h-9 border-gray-200 text-gray-700 px-3 md:px-4 py-2.5 rounded-lg hover:bg-gray-50 transition-colors shadow-sm font-medium flex items-center gap-2 shrink-0"
+                        title="导入文档">
+                    <i class="fa-solid fa-upload text-[11px]"></i>
+                    <span class="hidden sm:inline">Upload</span>
+                </button>
+                <button data-header-export-button
+                        @click="exportDocument('markdown')"
+                        class="text-xs bg-white border h-9 border-gray-200 text-gray-700 px-3 md:px-4 py-2.5 rounded-lg hover:bg-gray-50 transition-colors shadow-sm font-medium flex items-center gap-2 shrink-0"
+                        title="导出 Markdown">
+                    <i class="fa-solid fa-download text-[11px]"></i>
+                    <span class="hidden sm:inline">Export</span>
+                </button>
+                <button data-header-outline-button
+                        @click.stop="toggleDocumentOutline"
+                        class="text-xs bg-white border h-9 border-gray-200 text-gray-700 px-3 py-2.5 rounded-lg hover:bg-gray-50 transition-colors shadow-sm font-medium flex items-center justify-center shrink-0"
+                        :class="showDocumentOutline ? 'bg-gray-100 text-gray-900 border-gray-300' : ''"
+                        :title="showDocumentOutline ? 'Close outline' : 'Open outline'">
+                    <i class="fa-solid fa-list-ul text-[11px]"></i>
+                </button>
+                <span v-if="isModifying" class="hidden sm:flex text-xs text-gray-500 items-center gap-2 pr-2">
+                    <i class="fa-solid fa-pen-nib animate-bounce text-xs"></i> AI Processing
+                </span>
+            </div>
+        </div>
+
+        <div class="relative flex-1 overflow-hidden">
+            <div class="p-6 md:p-14 overflow-y-auto h-full document-content scroll-smooth no-scrollbar" id="document-container">
+                <div ref="documentBodyRef" class="max-w-3xl mx-auto w-full">
+                    <div ref="editorContainer" :class="{'cursor-blink': isModifying}"></div>
+                </div>
+                <div aria-hidden="true" :style="{ height: outlineScrollSpacerHeight + 'px' }"></div>
+            </div>
+
+            <div v-if="isDocumentModifying"
+                 class="editor-loading-overlay"
+                 role="status"
+                 aria-live="polite">
+                <div class="editor-loading-stage editor-loading-stage-inline">
+                    <div class="moss-waiting-avatar-slot editor-loading-avatar-slot">
+                        <div class="moss-waiting-avatar w-8 h-8 rounded-full border border-gray-200 bg-white flex items-center justify-center">
+                            <i class="fa-solid fa-asterisk text-gray-600 text-xs"></i>
+                        </div>
+                    </div>
+                    <div class="editor-loading-text">moss working ...</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="absolute bottom-6 right-6 z-50 flex items-center gap-3 transition-all duration-300">
+            <button @click="saveContent"
+                    class="w-10 h-10 rounded-full bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 transition flex items-center justify-center shadow-lg transform hover:scale-105 active:scale-95"
+                    title="保存文本 (Ctrl+S)">
+                <i v-if="isSaving" class="fa-solid fa-check text-green-500 text-sm transition-all duration-300"></i>
+                <i v-else class="fa-regular fa-floppy-disk text-sm transition-all duration-300"></i>
+            </button>
+
+            <button @click="toggleFullScreen"
+                    class="w-10 h-10 rounded-full bg-black hover:bg-gray-800 text-white transition flex items-center justify-center shadow-lg transform hover:scale-105 active:scale-95"
+                    title="全屏切换 (Ctrl+Shift+F)">
+                <i :class="isFullScreen ? 'fa-solid fa-down-left-and-up-right-to-center' : 'fa-solid fa-up-right-and-down-left-from-center'" class="text-xs transition-all duration-300"></i>
+            </button>
+        </div>
+
+        <div v-if="!isFullScreen"
+             class="absolute -bottom-2 left-0 w-full h-4 cursor-ns-resize z-[60]"
+             @mousedown="startDragging"></div>
+    </div>
+
+    <div v-if="showConversationTree && currentNoteId"
+         ref="conversationTreePanelRef"
+         class="fixed bg-white/80 backdrop-blur-xl border border-gray-100 rounded-xl text-gray-800 flex flex-col gap-1 overflow-visible animate-pop-in"
+         style="box-shadow: 0 8px 30px rgb(0 0 0 / 0.08); padding: 0.375rem;"
+         :style="conversationTreeStyle"
+         @click.stop>
+        <div class="flex items-center justify-between gap-3 px-2 py-1.5 border-b border-gray-100 mb-1">
+            <div class="min-w-0 font-semibold text-gray-800 text-xs truncate">{{ documentTitle }}</div>
+            <div class="flex items-center gap-1 shrink-0">
+                <button @click.stop="createConversation"
+                        :disabled="isCreatingConversation || isModifying"
+                        class="h-6 w-6 rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-800 transition-colors flex items-center justify-center shrink-0 disabled:opacity-60 disabled:cursor-not-allowed"
+                        title="新建讨论">
+                    <i :class="isCreatingConversation ? 'fa-solid fa-circle-notch fa-spin' : 'fa-solid fa-plus'" class="text-[10px]"></i>
+                </button>
+                <button @click.stop="closeConversationTree"
+                        class="h-6 w-6 rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-800 transition-colors flex items-center justify-center shrink-0"
+                        title="收起讨论">
+                    <i class="fa-solid fa-minus text-[10px]"></i>
+                </button>
+            </div>
+        </div>
+
+        <div class="mt-1 flex flex-col gap-1 overflow-y-auto no-scrollbar" style="line-height: 1.5;" @scroll.passive="closeConversationMenu">
+            <div v-for="(conversation, index) in noteConversations"
+                 :key="conversation.conversation_id"
+                 @click="switchConversation(conversation)"
+                 @mouseenter="hoveredConversationId = conversation.conversation_id"
+                 @mouseleave="handleConversationRowLeave(conversation)"
+                 class="group w-full flex items-center justify-between px-2 py-1.5 text-sm transition-all rounded-lg text-left relative"
+                 :class="[
+                    (isCurrentConversation(conversation) || openConversationMenuId === conversation.conversation_id) ? 'bg-gray-100 text-gray-900 font-medium' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-800',
+                    isModifying ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'
+                 ]"
+                 :title="conversationTitle(conversation)">
+                <div v-if="editingConversationId === conversation.conversation_id"
+                     class="flex items-center gap-1.5 overflow-hidden min-w-0 flex-1"
+                     @click.stop>
+                    <i :class="[conversationStatusIcon(conversation), isCurrentConversation(conversation) ? 'text-gray-700' : 'text-gray-500']"></i>
+                    <input v-model="renameConversationDraft"
+                           @keydown.enter.prevent="saveConversationTitle(conversation)"
+                           @keydown.esc.prevent="cancelRenameConversation"
+                           @blur="saveConversationTitle(conversation)"
+                           data-conversation-rename-input
+                           type="text"
+                           class="min-w-0 flex-1 rounded-md border border-gray-200 bg-white px-2 py-1 text-sm text-gray-800 outline-none focus:border-gray-400">
+                    <button @mousedown.prevent
+                            @click.stop="saveConversationTitle(conversation)"
+                            :disabled="isRenamingConversation"
+                            class="h-6 w-6 rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-800 transition-colors flex items-center justify-center shrink-0 disabled:opacity-60 disabled:cursor-not-allowed"
+                            title="保存标题">
+                        <i :class="isRenamingConversation ? 'fa-solid fa-circle-notch fa-spin' : 'fa-solid fa-check'" class="text-[10px]"></i>
+                    </button>
+                    <button @mousedown.prevent
+                            @click.stop="cancelRenameConversation"
+                            :disabled="isRenamingConversation"
+                            class="h-6 w-6 rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-800 transition-colors flex items-center justify-center shrink-0 disabled:opacity-60 disabled:cursor-not-allowed"
+                            title="取消">
+                        <i class="fa-solid fa-xmark text-[11px]"></i>
+                    </button>
+                </div>
+                <template v-else>
+                    <div class="flex items-center gap-2 overflow-hidden min-w-0 flex-1">
+                        <i :class="[conversationStatusIcon(conversation), isCurrentConversation(conversation) ? 'text-gray-700' : 'text-gray-400']"></i>
+                        <span class="truncate">{{ conversationTitle(conversation) }}</span>
+                    </div>
+                    <div class="flex items-center gap-1.5 shrink-0">
+                        <div class="conversation-action-slot relative h-6 w-6 shrink-0 flex items-center justify-center">
+                            <button v-if="conversationActionIcon(conversation)"
+                                    @click.stop="toggleConversationMenu(conversation, $event)"
+                                    :data-conversation-menu-trigger="conversation.conversation_id"
+                                    :disabled="isModifying || isConversationActionBusy"
+                                    class="h-6 w-6 rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-800 transition-all flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
+                                    title="更多">
+                                <i :class="conversationActionIcon(conversation)" class="text-[11px]"></i>
+                            </button>
+                            <teleport to="body">
+                                <div v-if="openConversationMenuId === conversation.conversation_id"
+                                     class="conversation-dropdown-menu show"
+                                     :style="conversationMenuStyle"
+                                     @pointerdown.stop
+                                     @click.stop>
+                                    <button @click.stop="startRenameConversation(conversation)"
+                                            :disabled="isModifying || isConversationActionBusy"
+                                            class="conversation-menu-item"
+                                            type="button">
+                                        <span class="conversation-menu-icon"><i class="fa-regular fa-pen-to-square text-[12px]"></i></span>
+                                        <span>重命名</span>
+                                    </button>
+                                    <button @click.stop="toggleConversationPinned(conversation)"
+                                            :disabled="isModifying || isConversationActionBusy"
+                                            class="conversation-menu-item"
+                                            type="button">
+                                        <span class="conversation-menu-icon"><i class="fa-solid fa-thumbtack text-[12px]"></i></span>
+                                        <span>{{ conversation.pinned_at ? '取消置顶' : '置顶' }}</span>
+                                    </button>
+                                    <div class="conversation-menu-divider"></div>
+                                    <button @click.stop="startDeleteConversation(conversation)"
+                                            :disabled="conversation.is_default || isModifying || isConversationActionBusy"
+                                            class="conversation-menu-item danger"
+                                            type="button">
+                                        <span class="conversation-menu-icon"><i class="fa-regular fa-trash-can text-[12px]"></i></span>
+                                        <span>删除</span>
+                                    </button>
+                                </div>
+                            </teleport>
+                        </div>
+                    </div>
+                </template>
+            </div>
+            <div v-if="!noteConversations.length && !isLoadingConversations"
+                 class="px-2 py-2 text-xs text-gray-400 text-center">
+                暂无讨论
+            </div>
+        </div>
+
+        <div v-if="isLoadingConversations" class="mt-1 px-2 py-1 text-xs text-gray-400">loading...</div>
+        <div v-if="conversationError" class="mt-1 px-2 py-1 text-xs text-red-500 truncate">{{ conversationError }}</div>
+    </div>
+
+    <div v-if="deleteConversationTarget"
+         class="conversation-delete-dialog-overlay fixed inset-0 flex items-center justify-center bg-black/20 px-4"
+         @click.self="cancelDeleteConversation">
+        <div class="w-full max-w-sm rounded-lg bg-white border border-gray-100 shadow-xl p-4" @click.stop>
+            <div class="text-sm font-semibold text-gray-900">删除会话</div>
+            <p class="mt-2 text-sm text-gray-600 leading-relaxed break-words">
+                “{{ conversationTitle(deleteConversationTarget) }}” 将从当前笔记的会话列表中移除。删除后该会话消息不可再访问。
+            </p>
+            <div class="mt-4 flex justify-end gap-2">
+                <button @click="cancelDeleteConversation"
+                        :disabled="isConversationActionBusy"
+                        class="px-3 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-100 disabled:opacity-60 disabled:cursor-not-allowed">取消</button>
+                <button @click="confirmDeleteConversation"
+                        :disabled="isConversationActionBusy"
+                        class="px-3 py-2 rounded-lg text-sm bg-red-600 text-white hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed">删除</button>
+            </div>
+        </div>
+    </div>
+
+    <div v-if="showDocumentOutline"
+         ref="outlinePanelRef"
+         class="fixed bg-white/80 backdrop-blur-xl border border-gray-100 rounded-xl text-gray-800 flex flex-col gap-1 overflow-hidden animate-pop-in"
+         style="box-shadow: 0 8px 30px rgb(0 0 0 / 0.08); padding: 0.375rem;"
+         :style="outlineStyle"
+         @click.stop>
+        <div class="flex items-center justify-between gap-3 px-2 py-1.5 border-b border-gray-100 mb-1">
+            <div class="min-w-0 font-semibold text-gray-800 text-xs truncate">目录</div>
+            <button @click.stop="closeDocumentOutline"
+                    class="h-6 w-6 rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-800 transition-colors flex items-center justify-center shrink-0"
+                    title="收起目录">
+                <i class="fa-solid fa-minus text-[10px]"></i>
+            </button>
+        </div>
+
+        <div class="mt-1 flex flex-col gap-1 overflow-y-auto no-scrollbar" style="line-height: 1.5;">
+            <button v-for="item in documentOutline"
+                    :key="item.id"
+                    @click="scrollToOutlineItem(item)"
+                    class="group w-full flex items-center gap-2 px-2 py-1.5 text-sm transition-all rounded-lg text-left"
+                    :class="[
+                        outlineIndentClass(item.level),
+                        isActiveOutlineItem(item) ? 'bg-gray-100 text-gray-900 font-medium' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-800'
+                    ]"
+                    :title="item.text">
+                <span class="rounded-full shrink-0"
+                      :class="isActiveOutlineItem(item) ? 'bg-black' : 'bg-transparent group-hover:bg-gray-300'"
+                      style="width: 0.375rem; height: 0.375rem;"></span>
+                <span class="truncate">{{ item.text }}</span>
+            </button>
+            <div v-if="!documentOutline.length"
+                 class="px-2 py-2 text-xs text-gray-400 text-center">
+                暂无目录
+            </div>
+        </div>
+    </div>
+
+    <div class="chat-scroll-shell relative w-full max-w-4xl mx-auto h-screen overflow-y-auto px-4 md:px-0 scroll-smooth no-scrollbar origin-top"
+         id="chat-container"
+         :class="[
+            isFullScreen ? 'opacity-0 pointer-events-none z-0 scale-95 blur-sm' : 'opacity-100 z-10 scale-100 blur-0',
+            isDragging ? 'transition-none' : 'transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)]'
+         ]"
+         style="will-change: transform, opacity, filter;"
+         :style="{ paddingTop: (chatPaddingTop + panelHeight) + 'px' }">
+
+        <div class="flex flex-col gap-6 w-full">
+            <div v-for="(msg, index) in messages" :key="index" class="w-full group">
+                <template v-if="isAnswerMessage(msg)">
+                    <div class="flex gap-4 max-w-[85%]">
+                        <div class="w-8 h-8 rounded-full border border-gray-200 bg-white flex items-center justify-center shrink-0">
+                            <i class="fa-solid fa-asterisk text-gray-600 text-xs"></i>
+                        </div>
+                        <div class="min-w-0 flex-1 flex flex-col">
+                            <div class="chat-markdown text-[15px] leading-relaxed text-gray-800" v-html="renderMarkdown(msg.content)"></div>
+                            <div class="mt-2 flex items-center gap-2 self-end">
+                                <span v-if="msg.taskType"
+                                      class="text-[11px] text-gray-400 border border-gray-200 rounded-full px-2 py-0.5 leading-snug opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
+                                    {{ getTaskTypeLabel(msg.taskType) }}
+                                </span>
+                                <button @click.stop="copyMessage(msg.content, index)"
+                                        class="h-8 w-8 rounded-md text-gray-400 opacity-0 group-hover:opacity-100 focus:opacity-100 hover:text-gray-700 hover:bg-white/70 transition-all flex items-center justify-center text-sm"
+                                        title="Copy message">
+                                    <i :class="copiedMessageIndex === index ? 'fa-solid fa-check text-green-500' : 'fa-regular fa-copy'"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+
+                <template v-else>
+                    <div class="flex gap-4 max-w-[85%]"
+                         :class="msg.role === 'user' ? 'ml-auto flex-row-reverse' : ''">
+
+                        <div class="w-8 h-8 rounded-full flex items-center justify-center shrink-0 border border-gray-200 bg-white"
+                             :class="msg.role === 'user' ? 'bg-black border-black' : ''">
+                            <span v-if="msg.role === 'user'" class="text-white text-sm font-medium">@</span>
+                            <i v-else class="fa-solid fa-asterisk text-gray-600 text-xs"></i>
+                        </div>
+
+                        <div v-if="msg.role === 'user'" class="flex flex-row-reverse items-center gap-2 min-w-0 max-w-full">
+                            <div class="p-4 rounded-2xl text-[15px] leading-relaxed bg-black text-white rounded-tr-sm shadow-sm whitespace-pre-wrap break-words max-w-full">
+                                {{ msg.content }}
+                            </div>
+                            <button @click.stop="copyMessage(msg.content, index)"
+                                    class="h-8 w-8 rounded-md text-gray-400 opacity-0 group-hover:opacity-100 focus:opacity-100 hover:text-gray-700 hover:bg-white/70 transition-all flex items-center justify-center text-sm"
+                                    title="Copy message">
+                                <i :class="copiedMessageIndex === index ? 'fa-solid fa-check text-green-500' : 'fa-regular fa-copy'"></i>
+                            </button>
+                        </div>
+
+                        <div v-else class="flex flex-col items-start">
+                            <div class="p-4 rounded-2xl text-[15px] leading-relaxed bg-white border border-gray-100 text-gray-800 rounded-tl-sm shadow-sm">
+                                <div class="chat-markdown" v-html="renderMarkdown(msg.content)"></div>
+                            </div>
+                            <button @click.stop="copyMessage(msg.content, index)"
+                                    class="mt-1 h-8 w-8 rounded-md text-gray-400 opacity-0 group-hover:opacity-100 focus:opacity-100 hover:text-gray-700 hover:bg-white/70 transition-all flex items-center justify-center text-sm self-end"
+                                    title="Copy message">
+                                <i :class="copiedMessageIndex === index ? 'fa-solid fa-check text-green-500' : 'fa-regular fa-copy'"></i>
+                            </button>
+                        </div>
+                    </div>
+                </template>
+            </div>
+
+            <div v-if="isThinking" class="flex gap-3 max-w-[85%] py-1">
+                <div class="moss-waiting-avatar-slot">
+                    <div class="moss-waiting-avatar w-8 h-8 rounded-full border border-gray-200 bg-white flex items-center justify-center">
+                        <i class="fa-solid fa-asterisk text-gray-600 text-xs"></i>
+                    </div>
+                </div>
+                <div class="min-w-0 flex-1 pt-0.5">
+                    <div v-if="waitingStages.length" class="moss-waiting-stage-list" role="status" aria-live="polite">
+                        <div v-for="stage in waitingStages"
+                             :key="stage.node"
+                             class="moss-waiting-stage"
+                             :class="{ 'is-active': stage.status === 'active', 'is-done': stage.status === 'done' }">
+                            <span class="moss-waiting-stage-dot"></span>
+                            <span>{{ stage.label }}</span>
+                        </div>
+                    </div>
+                    <div class="moss-waiting-skeleton" aria-hidden="true">
+                        <div class="moss-waiting-skeleton-line long"></div>
+                        <div class="moss-waiting-skeleton-line mid"></div>
+                        <div class="moss-waiting-skeleton-line short"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="chat-composer fixed left-1/2 w-[95%] max-w-3xl z-50 transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)]"
+         style="will-change: transform, opacity;"
+         :class="isFullScreen ? 'translate-y-[150px] -translate-x-1/2 opacity-0 pointer-events-none' : 'translate-y-0 -translate-x-1/2 opacity-100'">
+        <div data-chat-composer-frame class="chat-composer-frame bg-white shadow-[0_4px_20px_rgb(0,0,0,0.05)] border border-gray-200 px-3 py-2 flex flex-col gap-1 transition-all focus-within:border-gray-300">
+            <div data-chat-composer-input-row class="flex w-full">
+                <textarea v-model="inputText"
+                          ref="inputTextareaRef"
+                          @input="adjustInputTextareaHeight"
+                          @keydown.enter.exact.prevent="sendMessage()"
+                          @keydown.enter.shift.stop="allowTextareaNewline"
+                          rows="1"
+                          placeholder="与 moss 对话，输入指令以处理文本..."
+                          class="chat-composer-input w-full bg-transparent border-none outline-none text-[15px] text-gray-800 placeholder-gray-400 py-2 font-light min-w-0"
+                          :disabled="isModifying"></textarea>
+            </div>
+            <div data-chat-composer-toolbar class="flex items-center justify-between gap-3 w-full">
+                <button v-if="currentNoteId"
+                        data-composer-conversation-button
+                        @click.stop="toggleConversationTree"
+                        class="min-w-0 max-w-[70%] h-8 px-3 rounded-full border border-gray-200 bg-gray-50 text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors flex items-center gap-2 text-xs"
+                        :class="showConversationTree ? 'bg-gray-100 text-gray-900 border-gray-300' : ''"
+                        :title="showConversationTree ? 'Close discussions' : 'Open discussions'">
+                    <i class="fa-regular fa-comment text-[12px] shrink-0"></i>
+                    <span class="truncate">{{ currentConversationTitle() }}</span>
+                </button>
+                <div v-else class="min-w-0"></div>
+                <button data-composer-send-button
+                        @click="sendMessage()"
+                        :disabled="!inputText.trim() || isModifying"
+                        class="w-9 h-9 rounded-full bg-black hover:bg-gray-800 disabled:bg-gray-100 disabled:text-gray-400 text-white transition-all flex items-center justify-center shrink-0 disabled:cursor-not-allowed transform hover:scale-105 active:scale-95"
+                        title="发送">
+                    <i class="fa-solid fa-arrow-up text-sm"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script type="module">
+    import { createApp, ref, nextTick, onMounted, onUnmounted } from 'vue';
+    import { Editor, Node, mergeAttributes, Extension } from '@tiptap/core';
+    import StarterKit from '@tiptap/starter-kit';
+    import { marked } from 'marked';
+    import DOMPurify from 'dompurify';
+
+    marked.setOptions({
+        breaks: true,
+        gfm: true
+    });
+
+    const loadingStartedAt = performance.now();
+    const minimumLoadingMs = 320;
+
+    const hideInitialLoading = () => {
+        const loading = document.getElementById('app-loading');
+        if (!loading) return;
+        if (loading.dataset.closing === 'true') return;
+        loading.dataset.closing = 'true';
+        const elapsed = performance.now() - loadingStartedAt;
+        const delay = Math.max(0, minimumLoadingMs - elapsed);
+        window.setTimeout(() => {
+            loading.classList.add('app-loading-hidden');
+            loading.setAttribute('aria-hidden', 'true');
+            window.setTimeout(() => loading.remove(), 260);
+        }, delay);
+    };
+
+    const DEFAULT_API_BASE = 'http://127.0.0.1:8000';
+    const API_BASE = window.MOSS_API_BASE || (window.location.protocol.startsWith('http') ? window.location.origin : DEFAULT_API_BASE);
+    const apiUrl = (path) => `${API_BASE.replace(/\/$/, '')}${path}`;
+    const makeId = () => globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const MOSS_BLOCK_ID_PREFIX = 'moss-block-';
+    const MOSS_TEMP_ANCHOR_PREFIX = 'moss-temp-anchor-';
+    const TEMP_ANCHOR_ATTR = 'dataMossTempAnchor';
+
+    const CustomDiv = Node.create({
+        name: 'customDiv',
+        group: 'block',
+        content: 'block*',
+        parseHTML() { return [{ tag: 'div' }] },
+        renderHTML({ HTMLAttributes }) { return ['div', mergeAttributes(HTMLAttributes), 0] }
+    });
+
+    const GlobalAttributes = Extension.create({
+        name: 'globalAttributes',
+        addGlobalAttributes() {
+            return [
+                {
+                    types: ['heading', 'paragraph', 'customDiv', 'bulletList', 'orderedList', 'listItem', 'blockquote'],
+                    attributes: {
+                        class: { default: null, parseHTML: el => el.getAttribute('class'), renderHTML: attrs => attrs.class ? { class: attrs.class } : {} },
+                        id: { default: null, parseHTML: el => el.getAttribute('id'), renderHTML: attrs => attrs.id ? { id: attrs.id } : {} },
+                        style: { default: null, parseHTML: el => el.getAttribute('style'), renderHTML: attrs => attrs.style ? { style: attrs.style } : {} },
+                        dataMossTempAnchor: {
+                            default: null,
+                            parseHTML: el => el.getAttribute('data-moss-temp-anchor'),
+                            renderHTML: attrs => attrs.dataMossTempAnchor ? { 'data-moss-temp-anchor': attrs.dataMossTempAnchor } : {}
+                        }
+                    }
+                }
+            ]
+        }
+    });
+
+    createApp({
+        setup() {
+            const sessionId = localStorage.getItem('moss-session-id') || `session-${makeId()}`;
+            localStorage.setItem('moss-session-id', sessionId);
+            const urlParams = new URLSearchParams(window.location.search);
+            const initialNoteIdFromUrl = urlParams.get('note_id') || '';
+            const initialConversationIdFromUrl = urlParams.get('conversation_id') || '';
+            const isDraftNote = ref(urlParams.get('draft') === '1');
+            const currentNoteId = ref(
+                isDraftNote.value ? '' : initialNoteIdFromUrl || localStorage.getItem('moss-current-note-id') || ''
+            );
+            const currentConversationId = ref(
+                isDraftNote.value ? '' : initialConversationIdFromUrl || localStorage.getItem('moss-current-conversation-id') || ''
+            );
+
+            const setCurrentNoteId = (noteId) => {
+                if (!noteId) return;
+                currentNoteId.value = noteId;
+                localStorage.setItem('moss-current-note-id', noteId);
+            };
+
+            const setCurrentConversationId = (conversationId) => {
+                if (!conversationId) return;
+                currentConversationId.value = conversationId;
+                localStorage.setItem('moss-current-conversation-id', conversationId);
+            };
+
+            const syncNoteUrl = () => {
+                if (!currentNoteId.value || !currentConversationId.value) return;
+                const params = new URLSearchParams(window.location.search);
+                params.delete('draft');
+                params.set('note_id', currentNoteId.value);
+                params.set('conversation_id', currentConversationId.value);
+                window.history.replaceState({}, '', `/?${params.toString()}`);
+            };
+
+            const inputText = ref('');
+            const inputTextareaRef = ref(null);
+            const isModifying = ref(false);
+            const isDocumentModifying = ref(false);
+            const isThinking = ref(false);
+            const isFullScreen = ref(false);
+            const isSaving = ref(false);
+            const saveStatus = ref('idle');
+            const noteLoadError = ref('');
+            const documentTitle = ref('Document.md');
+            const currentNoteDisplayTitle = ref('');
+            const noteConversations = ref([]);
+            const isLoadingConversations = ref(false);
+            const isCreatingConversation = ref(false);
+            const isRenamingConversation = ref(false);
+            const isConversationActionBusy = ref(false);
+            const editingConversationId = ref('');
+            const renameConversationDraft = ref('');
+            const conversationError = ref('');
+            const hoveredConversationId = ref('');
+            const openConversationMenuId = ref('');
+            const deleteConversationTarget = ref(null);
+            const conversationMenuStyle = ref({
+                left: '-9999px',
+                top: '-9999px',
+                width: '10.5rem'
+            });
+            const showConversationTree = ref(true);
+            const conversationTreeStyle = ref({
+                left: '1rem',
+                top: '5.5rem',
+                width: '14.75rem',
+                maxHeight: 'calc(100vh - 8rem)',
+                zIndex: 1000
+            });
+            const isConversationTreeCompact = ref(false);
+            const documentOutline = ref([]);
+            const activeOutlineId = ref('');
+            const showDocumentOutline = ref(true);
+            const outlineScrollSpacerHeight = ref(0);
+            const outlineStyle = ref({
+                left: '1rem',
+                top: '5.5rem',
+                width: '14.75rem',
+                maxHeight: 'calc(100vh - 8rem)',
+                zIndex: 1000
+            });
+
+            const defaultPanelHeight = window.innerHeight * 0.55;
+            const panelHeight = ref(defaultPanelHeight);
+            const chatPaddingTop = 80;
+
+            const isDragging = ref(false);
+            const startY = ref(0);
+            const startHeight = ref(0);
+
+            const editorContainer = ref(null);
+            const documentBodyRef = ref(null);
+            const fileInputRef = ref(null);
+            const libraryButtonRef = ref(null);
+            const panelRef = ref(null);
+            const conversationTreeRef = ref(null);
+            const conversationTreePanelRef = ref(null);
+            const outlinePanelRef = ref(null);
+            let tiptapEditor = null;
+            let lastFocusAnchor = null;
+            let lastTopLevelSignature = '';
+            let idMaintenanceQueued = false;
+            let isMaintainingDocumentIds = false;
+            let autosaveTimer = null;
+            let lastSavedSnapshot = '';
+            let outlineRefreshFrame = 0;
+
+            const showAIPopup = ref(false);
+            const aiPopupPos = ref({ top: 0, left: 0 });
+            const aiPopupInput = ref('');
+            const aiPopupInputRef = ref(null);
+
+            const taskTypeLabels = {
+                general_chat: '普通聊天',
+                document_qa: '知识问答',
+                local_edit: '局部调整',
+                global_edit: '全文调整'
+            };
+            const normalizeTaskType = (taskType = '') => Object.hasOwn(taskTypeLabels, taskType) ? taskType : '';
+            const getTaskTypeLabel = (taskType = '') => taskTypeLabels[taskType] || taskType;
+            const waitingStageDefinitions = {
+                intent: 'Understanding request',
+                task_assemble: 'Reading context',
+                execute: 'Preparing response',
+                tools: 'Applying document changes',
+                task_advance: 'Checking next step'
+            };
+            const waitingStages = ref([]);
+            const resetWaitingStages = () => {
+                waitingStages.value = [];
+            };
+            const startWaitingStage = (node = '') => {
+                const label = waitingStageDefinitions[node];
+                if (!label) return;
+                const stageIndex = waitingStages.value.findIndex(stage => stage.node === node);
+                if (stageIndex >= 0) {
+                    waitingStages.value[stageIndex] = { node, label, status: 'active' };
+                    return;
+                }
+                waitingStages.value.push({ node, label, status: 'active' });
+            };
+            const completeWaitingStage = (node = '') => {
+                const stageIndex = waitingStages.value.findIndex(stage => stage.node === node);
+                if (stageIndex < 0) return;
+                waitingStages.value[stageIndex] = {
+                    ...waitingStages.value[stageIndex],
+                    status: 'done'
+                };
+            };
+
+            const createNoticeMessage = (content = '') => ({ role: 'ai', kind: 'notice', content });
+            const createAnswerMessage = (content = '', taskType = '') => ({
+                role: 'ai',
+                kind: 'answer',
+                content,
+                taskType: normalizeTaskType(taskType)
+            });
+            const normalizeMessage = (message = {}) => {
+                const role = message.role === 'user' ? 'user' : 'ai';
+                if (role === 'user') {
+                    return { role, content: message.content || '' };
+                }
+                return {
+                    role,
+                    kind: message.kind || 'answer',
+                    content: message.content || '',
+                    taskType: normalizeTaskType(message.taskType || message.task_type || '')
+                };
+            };
+            const isAnswerMessage = (message = {}) => message.role === 'ai' && message.kind === 'answer';
+
+            const defaultMessages = () => [
+                {
+                    role: 'ai',
+                    kind: 'notice',
+                    content: 'Moss 已连接到后端 SSE 协议。可以直接输入指令，或在文档中使用 Ctrl + / 进行局部伴写。'
+                }
+            ];
+            const messages = ref(defaultMessages());
+            const copiedMessageIndex = ref(null);
+
+            const renderMarkdown = (content = '') => {
+                const html = marked.parse(content || '');
+                return DOMPurify.sanitize(html, { USE_PROFILES: { html: true } });
+            };
+
+            const copyMessage = async (content = '', index = null) => {
+                const text = content || '';
+                try {
+                    if (navigator.clipboard?.writeText && window.isSecureContext) {
+                        await navigator.clipboard.writeText(text);
+                    } else {
+                        const textarea = document.createElement('textarea');
+                        textarea.value = text;
+                        textarea.setAttribute('readonly', '');
+                        textarea.style.position = 'fixed';
+                        textarea.style.top = '-9999px';
+                        textarea.style.opacity = '0';
+                        document.body.appendChild(textarea);
+                        textarea.select();
+                        const copied = document.execCommand('copy');
+                        document.body.removeChild(textarea);
+                        if (!copied) throw new Error('copy failed');
+                    }
+                    copiedMessageIndex.value = index;
+                    window.setTimeout(() => {
+                        if (copiedMessageIndex.value === index) copiedMessageIndex.value = null;
+                    }, 1200);
+                } catch (error) {
+                    copiedMessageIndex.value = null;
+                }
+            };
+
+            const allowTextareaNewline = () => {};
+
+            const adjustInputTextareaHeight = () => {
+                if (!inputTextareaRef.value) return;
+                inputTextareaRef.value.style.height = 'auto';
+                inputTextareaRef.value.style.height = `${inputTextareaRef.value.scrollHeight}px`;
+            };
+
+            const initialContent = `
+                <h1>欢迎使用 moss</h1>
+                <p class="text-sm text-gray-500 mb-8">智能文本与文档协作助手</p>
+
+                <h2>功能特性</h2>
+                <ul>
+                    <li><strong>全键盘排版：</strong> 光标放置于段落处，按 <code>Ctrl + 1~6</code> 切换标题层级。</li>
+                    <li><strong>层级升降：</strong> 按 <code>Ctrl + +</code> 提升当前标题，按 <code>Ctrl + -</code> 降低当前标题。</li>
+                    <li><strong>AI 悬浮窗：</strong> 使用 <code>Ctrl + /</code> 唤起光标处悬浮指令窗。</li>
+                    <li><strong>快捷操作：</strong> <code>Ctrl + S</code> 保存，<code>Ctrl + Shift + F</code> 全屏切换。</li>
+                </ul>
+
+                <div id="demo-section" class="transition-colors duration-500 rounded-lg p-2 -mx-2 mt-4">
+                    <h2>大模型接入预留区</h2>
+                    <p>此段落包裹在一个预留了 ID 的 DIV 节点中。</p>
+                    <p>后端会通过 <code>chat_chunk</code> 推送聊天文本，并通过 <code>dom_mutation</code> 派发局部文档修改。</p>
+                </div>
+
+                <div style="height: 260px;"><p class="text-gray-300 text-sm mt-10">（用来产生滚动条的占位空间）</p></div>
+            `;
+
+            const contentHTML = ref(initialContent);
+
+            const nodeSupportsAttr = (node, attrName) => {
+                return Boolean(node?.type?.spec?.attrs && Object.prototype.hasOwnProperty.call(node.type.spec.attrs, attrName));
+            };
+
+            const collectEditorIds = () => {
+                const ids = new Set();
+                if (!tiptapEditor) return ids;
+                tiptapEditor.state.doc.descendants((node) => {
+                    if (node.attrs?.id) ids.add(String(node.attrs.id));
+                });
+                return ids;
+            };
+
+            const createUniqueEditorId = (prefix, ids = collectEditorIds()) => {
+                let id = '';
+                do {
+                    id = `${prefix}${String(makeId()).replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+                } while (ids.has(id));
+                ids.add(id);
+                return id;
+            };
+
+            const topLevelStructureSignature = () => {
+                if (!tiptapEditor) return '';
+                const parts = [];
+                tiptapEditor.state.doc.forEach((node, _offset, index) => {
+                    parts.push(`${index}:${node.type.name}:${node.attrs?.id || ''}:${node.childCount}`);
+                });
+                return parts.join('|');
+            };
+
+            const refreshTopLevelSignature = () => {
+                lastTopLevelSignature = topLevelStructureSignature();
+            };
+
+            const getSelectionAnchorCandidate = () => {
+                if (!tiptapEditor) return null;
+
+                const { from, $from } = tiptapEditor.state.selection;
+                let targetDepth = null;
+
+                for (let depth = $from.depth; depth >= 1; depth -= 1) {
+                    if ($from.node(depth)?.type?.name === 'listItem') {
+                        targetDepth = depth;
+                        break;
+                    }
+                }
+
+                if (targetDepth === null) {
+                    for (let depth = $from.depth; depth >= 1; depth -= 1) {
+                        const node = $from.node(depth);
+                        if (node?.isTextblock || node?.type?.name === 'blockquote' || node?.type?.name === 'customDiv') {
+                            targetDepth = depth;
+                            break;
+                        }
+                    }
+                }
+
+                if (targetDepth === null && $from.depth >= 1) targetDepth = 1;
+                if (targetDepth === null) return null;
+
+                const node = $from.node(targetDepth);
+                const blockNode = $from.depth >= 1 ? $from.node(1) : node;
+                let targetPos = from;
+                try {
+                    targetPos = $from.before(targetDepth);
+                } catch {
+                    targetPos = from;
+                }
+
+                return {
+                    elementId: node?.attrs?.id || null,
+                    blockId: blockNode?.attrs?.id || null,
+                    pos: from,
+                    targetPos,
+                    nodeType: node?.type?.name || null
+                };
+            };
+
+            const updateLastFocusAnchor = () => {
+                const anchor = getSelectionAnchorCandidate();
+                if (!anchor) return lastFocusAnchor;
+                lastFocusAnchor = {
+                    elementId: anchor.elementId,
+                    blockId: anchor.blockId,
+                    pos: anchor.pos
+                };
+                return lastFocusAnchor;
+            };
+
+            const ensureTopLevelBlockIds = () => {
+                if (!tiptapEditor) return contentHTML.value;
+
+                isMaintainingDocumentIds = true;
+                try {
+                    const ids = collectEditorIds();
+                    const seenTopLevelIds = new Set();
+                    let tr = tiptapEditor.state.tr;
+                    tiptapEditor.state.doc.forEach((node, offset) => {
+                        if (!node.isBlock || !nodeSupportsAttr(node, 'id')) return;
+                        const currentId = node.attrs?.id ? String(node.attrs.id) : '';
+                        const needsGeneratedId = !currentId
+                            || currentId.startsWith(MOSS_TEMP_ANCHOR_PREFIX)
+                            || (currentId.startsWith(MOSS_BLOCK_ID_PREFIX) && seenTopLevelIds.has(currentId));
+
+                        if (!needsGeneratedId) {
+                            seenTopLevelIds.add(currentId);
+                            return;
+                        }
+
+                        const nextId = createUniqueEditorId(MOSS_BLOCK_ID_PREFIX, ids);
+                        seenTopLevelIds.add(nextId);
+                        const attrs = {
+                            ...node.attrs,
+                            id: nextId
+                        };
+                        if (nodeSupportsAttr(node, TEMP_ANCHOR_ATTR) && node.attrs?.[TEMP_ANCHOR_ATTR]) {
+                            attrs[TEMP_ANCHOR_ATTR] = null;
+                        }
+                        tr = tr.setNodeMarkup(offset, undefined, {
+                            ...attrs
+                        });
+                    });
+
+                    if (tr.docChanged) tiptapEditor.view.dispatch(tr);
+                    contentHTML.value = tiptapEditor.getHTML();
+                    refreshTopLevelSignature();
+                    updateLastFocusAnchor();
+                    return contentHTML.value;
+                } finally {
+                    isMaintainingDocumentIds = false;
+                }
+            };
+
+            const queueTopLevelIdMaintenance = () => {
+                if (idMaintenanceQueued || isMaintainingDocumentIds) return;
+                idMaintenanceQueued = true;
+                window.requestAnimationFrame(() => {
+                    idMaintenanceQueued = false;
+                    ensureTopLevelBlockIds();
+                    scheduleDocumentOutlineRefresh();
+                });
+            };
+
+            const addTemporaryAnchor = (anchor) => {
+                if (!tiptapEditor || !anchor) return null;
+                const node = tiptapEditor.state.doc.nodeAt(anchor.targetPos);
+                if (!node || node.attrs?.id || !nodeSupportsAttr(node, 'id') || !nodeSupportsAttr(node, TEMP_ANCHOR_ATTR)) {
+                    return node?.attrs?.id || null;
+                }
+
+                const tempAnchorId = createUniqueEditorId(MOSS_TEMP_ANCHOR_PREFIX);
+                const tr = tiptapEditor.state.tr.setNodeMarkup(anchor.targetPos, undefined, {
+                    ...node.attrs,
+                    id: tempAnchorId,
+                    [TEMP_ANCHOR_ATTR]: 'true'
+                });
+                tiptapEditor.view.dispatch(tr);
+                contentHTML.value = tiptapEditor.getHTML();
+                refreshTopLevelSignature();
+                return tempAnchorId;
+            };
+
+            const cleanupTemporaryAnchors = (tempAnchorId = null) => {
+                if (!tiptapEditor) return;
+
+                let tr = tiptapEditor.state.tr;
+                tiptapEditor.state.doc.descendants((node, pos) => {
+                    const id = node.attrs?.id || '';
+                    const hasTempAttr = Boolean(node.attrs?.[TEMP_ANCHOR_ATTR]);
+                    const isTrackedTemp = Boolean(tempAnchorId && id === tempAnchorId);
+                    if (!hasTempAttr && !isTrackedTemp) return;
+
+                    const attrs = { ...node.attrs };
+                    if ((hasTempAttr || isTrackedTemp) && String(id).startsWith(MOSS_TEMP_ANCHOR_PREFIX) && nodeSupportsAttr(node, 'id')) {
+                        attrs.id = null;
+                    }
+                    if (nodeSupportsAttr(node, TEMP_ANCHOR_ATTR)) {
+                        attrs[TEMP_ANCHOR_ATTR] = null;
+                    }
+                    tr = tr.setNodeMarkup(pos, undefined, attrs);
+                });
+
+                if (!tr.docChanged) return;
+                tiptapEditor.view.dispatch(tr);
+                contentHTML.value = tiptapEditor.getHTML();
+                refreshTopLevelSignature();
+                updateLastFocusAnchor();
+            };
+
+            const getEditorDomElementById = (id) => {
+                if (!id || !tiptapEditor?.view?.dom) return null;
+                return findById(tiptapEditor.view.dom, id);
+            };
+
+            const getTopLevelBlockIdForElementId = (id) => {
+                const target = getEditorDomElementById(id);
+                if (!target) return null;
+
+                let current = target;
+                while (current.parentElement && current.parentElement !== tiptapEditor.view.dom) {
+                    current = current.parentElement;
+                }
+                return current?.id || null;
+            };
+
+            const snapshotContainsId = (html, id) => {
+                if (!id) return false;
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(`<div data-moss-root>${html || ''}</div>`, 'text/html');
+                return Boolean(findById(doc.body.firstElementChild, id));
+            };
+
+            const prepareAgentRequestAnchors = (explicitFocusId = null) => {
+                const request = {
+                    focusElementId: null,
+                    focusBlockId: null,
+                    canvasSnapshot: contentHTML.value,
+                    tempAnchorId: null
+                };
+                if (!tiptapEditor) return request;
+
+                cleanupTemporaryAnchors();
+                ensureTopLevelBlockIds();
+
+                let anchor = getSelectionAnchorCandidate();
+                if (anchor) updateLastFocusAnchor();
+
+                const explicitFocusExists = Boolean(explicitFocusId && getEditorDomElementById(explicitFocusId));
+                if (!explicitFocusExists && anchor && !anchor.elementId) {
+                    const tempAnchorId = addTemporaryAnchor(anchor);
+                    if (tempAnchorId) {
+                        if (String(tempAnchorId).startsWith(MOSS_TEMP_ANCHOR_PREFIX)) {
+                            request.tempAnchorId = tempAnchorId;
+                        }
+                        anchor = getSelectionAnchorCandidate() || anchor;
+                        updateLastFocusAnchor();
+                    }
+                }
+
+                request.focusElementId = explicitFocusExists
+                    ? explicitFocusId
+                    : (anchor?.elementId || lastFocusAnchor?.elementId || null);
+                request.focusBlockId = anchor?.blockId
+                    || lastFocusAnchor?.blockId
+                    || getTopLevelBlockIdForElementId(request.focusElementId)
+                    || null;
+
+                if (!request.focusElementId && request.focusBlockId) {
+                    request.focusElementId = request.focusBlockId;
+                }
+
+                contentHTML.value = tiptapEditor.getHTML();
+                request.canvasSnapshot = contentHTML.value;
+
+                if (request.focusElementId && !snapshotContainsId(request.canvasSnapshot, request.focusElementId)) {
+                    request.focusElementId = request.focusBlockId && snapshotContainsId(request.canvasSnapshot, request.focusBlockId)
+                        ? request.focusBlockId
+                        : null;
+                }
+                if (request.focusBlockId && !snapshotContainsId(request.canvasSnapshot, request.focusBlockId)) {
+                    request.focusBlockId = getTopLevelBlockIdForElementId(request.focusElementId);
+                }
+                if (!request.focusElementId && request.focusBlockId) {
+                    request.focusElementId = request.focusBlockId;
+                }
+
+                lastFocusAnchor = {
+                    elementId: request.focusElementId,
+                    blockId: request.focusBlockId,
+                    pos: anchor?.pos || lastFocusAnchor?.pos || tiptapEditor.state.selection.from
+                };
+
+                return request;
+            };
+
+            const scrollToBottom = () => {
+                const container = document.getElementById('chat-container');
+                if (container) container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+            };
+
+            const normalizeConversation = (conversation = {}) => ({
+                conversation_id: conversation.conversation_id || '',
+                note_id: conversation.note_id || currentNoteId.value,
+                title: conversation.title || '',
+                is_default: Boolean(conversation.is_default),
+                pinned_at: conversation.pinned_at || null,
+                created_at: conversation.created_at || '',
+                updated_at: conversation.updated_at || ''
+            });
+
+            const conversationTitle = (conversation = {}) => {
+                return conversation.title || (conversation.is_default ? 'Default conversation' : 'New discussion');
+            };
+
+            const currentConversationTitle = () => {
+                const currentConversation = noteConversations.value.find((conversation) => isCurrentConversation(conversation));
+                return currentConversation ? conversationTitle(currentConversation) : 'Current discussion';
+            };
+
+            const isCurrentConversation = (conversation = {}) => {
+                return conversation.conversation_id === currentConversationId.value;
+            };
+
+            const conversationStatusIcon = (conversation = {}) => {
+                return isCurrentConversation(conversation) ? 'fa-solid fa-message text-[11px] shrink-0' : 'fa-regular fa-message text-[11px] shrink-0';
+            };
+
+            const isConversationMenuOpen = (conversation = {}) => {
+                return Boolean(conversation.conversation_id && openConversationMenuId.value === conversation.conversation_id);
+            };
+
+            const conversationActionIcon = (conversation = {}) => {
+                if (!conversation.conversation_id) return '';
+                if (isConversationMenuOpen(conversation) || hoveredConversationId.value === conversation.conversation_id) {
+                    return 'fa-solid fa-ellipsis';
+                }
+                if (conversation.pinned_at) return 'fa-solid fa-thumbtack';
+                if (isCurrentConversation(conversation)) return 'fa-solid fa-ellipsis';
+                return '';
+            };
+
+            const closeConversationMenu = () => {
+                openConversationMenuId.value = '';
+            };
+
+            const handleConversationRowLeave = (conversation = {}) => {
+                if (!isConversationMenuOpen(conversation)) {
+                    hoveredConversationId.value = '';
+                }
+            };
+
+            const conversationMenuTrigger = (conversation = {}) => {
+                const id = conversation.conversation_id || '';
+                const triggers = conversationTreePanelRef.value?.querySelectorAll?.('[data-conversation-menu-trigger]') || [];
+                return Array.from(triggers).find(trigger => trigger.dataset.conversationMenuTrigger === id) || null;
+            };
+
+            const updateConversationMenuPosition = (conversation = {}, triggerElement = null) => {
+                const trigger = triggerElement || conversationMenuTrigger(conversation);
+                const rect = trigger?.getBoundingClientRect?.();
+                if (!rect) return;
+                const menuWidth = 168;
+                const menuHeight = 118;
+                const pagePadding = 8;
+                const maxLeft = Math.max(pagePadding, window.innerWidth - menuWidth - pagePadding);
+                const maxTop = Math.max(pagePadding, window.innerHeight - menuHeight - pagePadding);
+                const desiredLeft = rect.left;
+                const desiredTop = rect.bottom + 6;
+                const left = Math.max(pagePadding, Math.min(desiredLeft, maxLeft));
+                const top = Math.max(pagePadding, Math.min(desiredTop, maxTop));
+                conversationMenuStyle.value = {
+                    left: `${left}px`,
+                    top: `${top}px`,
+                    width: `${menuWidth}px`
+                };
+            };
+
+            const toggleConversationMenu = (conversation = {}, event = null) => {
+                if (!conversation.conversation_id || isModifying.value) return;
+                if (isConversationMenuOpen(conversation)) {
+                    closeConversationMenu();
+                    return;
+                }
+                updateConversationMenuPosition(conversation, event?.currentTarget || null);
+                hoveredConversationId.value = conversation.conversation_id;
+                openConversationMenuId.value = conversation.conversation_id;
+            };
+
+            const closeConversationTree = () => {
+                closeConversationMenu();
+                showConversationTree.value = false;
+            };
+
+            const updateConversationTreePosition = () => {
+                const preferredTreeWidth = 236;
+                const minTreeWidth = 196;
+                const pagePadding = 12;
+                const panelRect = panelRef.value?.getBoundingClientRect?.();
+                const rawButtonRect = libraryButtonRef.value?.getBoundingClientRect?.();
+                const buttonRect = rawButtonRect?.width || rawButtonRect?.height ? rawButtonRect : null;
+                const leftSpace = panelRect ? panelRect.left : window.innerWidth;
+                const hasExternalLeftSpace = leftSpace >= preferredTreeWidth + pagePadding * 2;
+                isConversationTreeCompact.value = !hasExternalLeftSpace;
+                const treeWidth = Math.min(
+                    preferredTreeWidth,
+                    Math.max(
+                        minTreeWidth,
+                        hasExternalLeftSpace ? leftSpace - pagePadding * 2 : window.innerWidth - pagePadding * 2
+                    )
+                );
+                const centeredLeft = (leftSpace - treeWidth) / 2;
+                const maxLeft = window.innerWidth - treeWidth - pagePadding;
+                const treeLeft = hasExternalLeftSpace
+                    ? Math.max(pagePadding, Math.min(centeredLeft, maxLeft))
+                    : pagePadding;
+                const fallbackTop = panelRect ? panelRect.top + 64 : 88;
+                const top = buttonRect ? buttonRect.bottom + 14 : fallbackTop;
+                const bottomLimit = window.innerHeight - 96;
+                const maxHeight = Math.max(160, bottomLimit - top);
+                conversationTreeStyle.value = {
+                    left: `${treeLeft}px`,
+                    top: `${top}px`,
+                    width: `${treeWidth}px`,
+                    maxHeight: `${maxHeight}px`,
+                    zIndex: 1000
+                };
+            };
+
+            const openConversationTree = async () => {
+                if (!currentNoteId.value) return;
+                if (!noteConversations.value.length) {
+                    await loadNoteConversations().catch(() => {});
+                }
+                updateConversationTreePosition();
+                showConversationTree.value = true;
+                await nextTick();
+                updateConversationTreePosition();
+            };
+
+            const toggleConversationTree = async () => {
+                if (!currentNoteId.value) return;
+                if (showConversationTree.value) {
+                    closeConversationTree();
+                    return;
+                }
+                await openConversationTree();
+            };
+
+            const createNote = async () => {
+                const response = await fetch(apiUrl('/api/v1/notes'), { method: 'POST' });
+                if (!response.ok) throw new Error(await response.text());
+                const payload = await response.json();
+                setCurrentNoteId(payload.note_id);
+                setCurrentConversationId(payload.default_conversation_id);
+                noteConversations.value = [
+                    normalizeConversation({
+                        conversation_id: payload.default_conversation_id,
+                        note_id: payload.note_id,
+                        title: 'Default conversation',
+                        is_default: true
+                    })
+                ];
+                isDraftNote.value = false;
+                showConversationTree.value = true;
+                syncNoteUrl();
+                await nextTick();
+                updateConversationTreePosition();
+                if (isConversationTreeCompact.value) closeConversationTree();
+                return payload;
+            };
+
+            const loadCurrentNote = async () => {
+                if (isDraftNote.value || !currentNoteId.value) {
+                    contentHTML.value = '<p></p>';
+                    lastSavedSnapshot = '';
+                    documentTitle.value = 'Untitled note';
+                    noteConversations.value = [];
+                    closeConversationTree();
+                    messages.value = defaultMessages();
+                    return;
+                }
+
+                const response = await fetch(apiUrl(`/api/v1/notes/${encodeURIComponent(currentNoteId.value)}`));
+                if (!response.ok) throw new Error(await response.text());
+                const note = await response.json();
+                setCurrentNoteId(note.note_id);
+                setCurrentConversationId(
+                    initialConversationIdFromUrl || note.active_conversation_id || note.default_conversation_id
+                );
+                syncNoteUrl();
+                currentNoteDisplayTitle.value = note.display_title || '';
+                documentTitle.value = note.effective_title || note.display_title || note.title || 'Untitled note';
+                contentHTML.value = note.canvas_snapshot || '<p></p>';
+                lastSavedSnapshot = note.canvas_snapshot || '';
+                await loadNoteConversations();
+                await loadConversationMessages();
+                showConversationTree.value = true;
+                await nextTick();
+                updateConversationTreePosition();
+                if (isConversationTreeCompact.value) closeConversationTree();
+            };
+
+            const loadNoteConversations = async () => {
+                if (!currentNoteId.value) {
+                    noteConversations.value = [];
+                    return;
+                }
+                isLoadingConversations.value = true;
+                conversationError.value = '';
+                try {
+                    const response = await fetch(apiUrl(`/api/v1/notes/${encodeURIComponent(currentNoteId.value)}/conversations`));
+                    if (!response.ok) throw new Error(await response.text());
+                    const payload = await response.json();
+                    noteConversations.value = (payload.conversations || []).map(normalizeConversation);
+                    if (
+                        openConversationMenuId.value &&
+                        !noteConversations.value.some(item => item.conversation_id === openConversationMenuId.value)
+                    ) {
+                        closeConversationMenu();
+                    }
+                    if (!currentConversationId.value && payload.active_conversation_id) {
+                        setCurrentConversationId(payload.active_conversation_id);
+                        syncNoteUrl();
+                    }
+                } catch (error) {
+                    conversationError.value = error.message || 'Failed to load discussions';
+                } finally {
+                    isLoadingConversations.value = false;
+                }
+            };
+
+            const loadConversationMessages = async () => {
+                if (!currentNoteId.value || !currentConversationId.value) {
+                    messages.value = defaultMessages();
+                    return;
+                }
+                const response = await fetch(apiUrl(`/api/v1/notes/${encodeURIComponent(currentNoteId.value)}/conversations/${encodeURIComponent(currentConversationId.value)}/messages`));
+                if (!response.ok) throw new Error(await response.text());
+                const payload = await response.json();
+                const history = Array.isArray(payload.messages) ? payload.messages : [];
+                messages.value = history.length ? history.map(normalizeMessage) : defaultMessages();
+                await nextTick();
+                scrollToBottom();
+            };
+
+            const createConversation = async () => {
+                if (isCreatingConversation.value) return;
+                closeConversationMenu();
+                isCreatingConversation.value = true;
+                conversationError.value = '';
+                try {
+                    await flushAutosave();
+                    if (!currentNoteId.value) {
+                        await ensurePersistedNote(contentHTML.value, { allowBlank: true });
+                    }
+                    const response = await fetch(apiUrl(`/api/v1/notes/${encodeURIComponent(currentNoteId.value)}/conversations`), {
+                        method: 'POST'
+                    });
+                    if (!response.ok) throw new Error(await response.text());
+                    const conversation = normalizeConversation(await response.json());
+                    setCurrentConversationId(conversation.conversation_id);
+                    syncNoteUrl();
+                    noteConversations.value = [
+                        ...noteConversations.value.filter(item => item.conversation_id !== conversation.conversation_id),
+                        conversation
+                    ];
+                    await loadConversationMessages();
+                    await loadNoteConversations();
+                } catch (error) {
+                    conversationError.value = error.message || 'Failed to create discussion';
+                } finally {
+                    isCreatingConversation.value = false;
+                }
+            };
+
+            const switchConversation = async (conversation) => {
+                const nextConversationId = conversation?.conversation_id || '';
+                if (
+                    !nextConversationId ||
+                    nextConversationId === currentConversationId.value ||
+                    isModifying.value ||
+                    editingConversationId.value
+                ) return;
+                const previousConversationId = currentConversationId.value;
+                closeConversationMenu();
+                conversationError.value = '';
+                try {
+                    await flushAutosave();
+                    setCurrentConversationId(nextConversationId);
+                    syncNoteUrl();
+                    await loadConversationMessages();
+                    await loadNoteConversations();
+                } catch (error) {
+                    conversationError.value = error.message || 'Failed to switch discussion';
+                    if (previousConversationId) {
+                        setCurrentConversationId(previousConversationId);
+                        syncNoteUrl();
+                        await loadConversationMessages().catch(() => {});
+                    }
+                }
+            };
+
+            const startRenameConversation = (conversation) => {
+                if (isModifying.value || isRenamingConversation.value) return;
+                closeConversationMenu();
+                editingConversationId.value = conversation?.conversation_id || '';
+                renameConversationDraft.value = conversationTitle(conversation);
+                nextTick(() => {
+                    const input = conversationTreePanelRef.value?.querySelector?.('[data-conversation-rename-input]');
+                    input?.focus?.();
+                    input?.select?.();
+                });
+            };
+
+            const cancelRenameConversation = () => {
+                editingConversationId.value = '';
+                renameConversationDraft.value = '';
+                conversationError.value = '';
+            };
+
+            const saveConversationTitle = async (conversation) => {
+                if (!conversation?.conversation_id || isRenamingConversation.value) return;
+                if (editingConversationId.value !== conversation.conversation_id) return;
+                const title = renameConversationDraft.value.trim();
+                if (!title) {
+                    cancelRenameConversation();
+                    return;
+                }
+                if (title === conversationTitle(conversation)) {
+                    cancelRenameConversation();
+                    return;
+                }
+                isRenamingConversation.value = true;
+                conversationError.value = '';
+                try {
+                    const response = await fetch(
+                        apiUrl(`/api/v1/notes/${encodeURIComponent(currentNoteId.value)}/conversations/${encodeURIComponent(conversation.conversation_id)}`),
+                        {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ title })
+                        }
+                    );
+                    if (!response.ok) throw new Error(await response.text());
+                    const renamed = normalizeConversation(await response.json());
+                    noteConversations.value = noteConversations.value.map(item =>
+                        item.conversation_id === renamed.conversation_id ? renamed : item
+                    );
+                    cancelRenameConversation();
+                    await loadNoteConversations();
+                } catch (error) {
+                    conversationError.value = error.message || 'Failed to rename discussion';
+                } finally {
+                    isRenamingConversation.value = false;
+                }
+            };
+
+            const toggleConversationPinned = async (conversation) => {
+                if (!conversation?.conversation_id || isConversationActionBusy.value) return;
+                isConversationActionBusy.value = true;
+                conversationError.value = '';
+                try {
+                    const response = await fetch(
+                        apiUrl(`/api/v1/notes/${encodeURIComponent(currentNoteId.value)}/conversations/${encodeURIComponent(conversation.conversation_id)}`),
+                        {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ pinned: !conversation.pinned_at })
+                        }
+                    );
+                    if (!response.ok) throw new Error(await response.text());
+                    const updated = normalizeConversation(await response.json());
+                    noteConversations.value = noteConversations.value.map(item =>
+                        item.conversation_id === updated.conversation_id ? updated : item
+                    );
+                    closeConversationMenu();
+                    await loadNoteConversations();
+                } catch (error) {
+                    conversationError.value = error.message || 'Failed to update discussion';
+                } finally {
+                    isConversationActionBusy.value = false;
+                }
+            };
+
+            const startDeleteConversation = (conversation) => {
+                if (!conversation?.conversation_id || conversation.is_default || isConversationActionBusy.value) return;
+                closeConversationMenu();
+                deleteConversationTarget.value = conversation;
+            };
+
+            const cancelDeleteConversation = () => {
+                deleteConversationTarget.value = null;
+            };
+
+            const confirmDeleteConversation = async () => {
+                const conversation = deleteConversationTarget.value;
+                if (!conversation?.conversation_id || conversation.is_default || isConversationActionBusy.value) return;
+                isConversationActionBusy.value = true;
+                conversationError.value = '';
+                try {
+                    const response = await fetch(
+                        apiUrl(`/api/v1/notes/${encodeURIComponent(currentNoteId.value)}/conversations/${encodeURIComponent(conversation.conversation_id)}`),
+                        { method: 'DELETE' }
+                    );
+                    if (!response.ok) throw new Error(await response.text());
+                    const deletedId = conversation.conversation_id;
+                    noteConversations.value = noteConversations.value.filter(item => item.conversation_id !== deletedId);
+                    cancelDeleteConversation();
+                    if (currentConversationId.value === deletedId) {
+                        const fallback = noteConversations.value.find(item => item.is_default) || noteConversations.value[0];
+                        if (fallback) {
+                            setCurrentConversationId(fallback.conversation_id);
+                            syncNoteUrl();
+                            await loadConversationMessages();
+                        }
+                    }
+                    await loadNoteConversations();
+                } catch (error) {
+                    conversationError.value = error.message || 'Failed to delete discussion';
+                } finally {
+                    isConversationActionBusy.value = false;
+                }
+            };
+
+            const isBlankSnapshot = (html) => {
+                const holder = document.createElement('div');
+                holder.innerHTML = html || '';
+                const text = (holder.textContent || '').replace(/\u00a0/g, ' ').trim();
+                if (text) return false;
+                return !holder.querySelector('img, video, audio, iframe, table, hr, pre, code');
+            };
+
+            const ensurePersistedNote = async (snapshot = '', { allowBlank = false } = {}) => {
+                if (currentNoteId.value && currentConversationId.value) return true;
+                if (!allowBlank && isBlankSnapshot(snapshot)) return false;
+                await createNote();
+                return true;
+            };
+
+            const persistNoteSnapshot = async ({ immediate = false } = {}) => {
+                if (!tiptapEditor) return;
+                contentHTML.value = tiptapEditor.getHTML();
+                if (!(await ensurePersistedNote(contentHTML.value))) return;
+                if (contentHTML.value === lastSavedSnapshot) return;
+                saveStatus.value = 'saving';
+                const response = await fetch(apiUrl(`/api/v1/notes/${encodeURIComponent(currentNoteId.value)}/snapshot`), {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ canvas_snapshot: contentHTML.value })
+                });
+                if (!response.ok) {
+                    saveStatus.value = 'error';
+                    throw new Error(await response.text());
+                }
+                const saved = await response.json();
+                lastSavedSnapshot = contentHTML.value;
+                documentTitle.value = currentNoteDisplayTitle.value || saved.title || documentTitle.value;
+                saveStatus.value = 'saved';
+            };
+
+            const queueAutosave = () => {
+                if (autosaveTimer) window.clearTimeout(autosaveTimer);
+                autosaveTimer = window.setTimeout(() => {
+                    autosaveTimer = null;
+                    persistNoteSnapshot().catch(() => {});
+                }, 1200);
+            };
+
+            const flushAutosave = async () => {
+                if (autosaveTimer) {
+                    window.clearTimeout(autosaveTimer);
+                    autosaveTimer = null;
+                }
+                await persistNoteSnapshot({ immediate: true });
+            };
+
+            const saveContent = async () => {
+                if (isSaving.value) return;
+                isSaving.value = true;
+                try {
+                    await flushAutosave();
+                } catch (error) {
+                    messages.value.push(createNoticeMessage(`保存失败：${error.message}`));
+                    await nextTick();
+                    scrollToBottom();
+                } finally {
+                    setTimeout(() => { isSaving.value = false; }, 900);
+                }
+            };
+
+            const triggerUpload = () => {
+                if (isModifying.value) return;
+                fileInputRef.value?.click();
+            };
+
+            const handleUpload = async (event) => {
+                const file = event.target.files?.[0];
+                if (!file) return;
+
+                const formData = new FormData();
+                formData.append('file', file);
+                isModifying.value = true;
+                try {
+                    const response = await fetch(apiUrl('/api/document/upload'), {
+                        method: 'POST',
+                        body: formData
+                    });
+                    if (!response.ok) throw new Error(await response.text());
+                    const result = await response.json();
+                    contentHTML.value = result.htmlContent;
+                    documentTitle.value = result.filename || file.name;
+                    tiptapEditor.commands.setContent(contentHTML.value);
+                    cleanupTemporaryAnchors();
+                    ensureTopLevelBlockIds();
+                    scheduleDocumentOutlineRefresh();
+                    await persistNoteSnapshot({ immediate: true }).catch(() => {});
+                    messages.value.push(createNoticeMessage(`已导入 ${documentTitle.value}。`));
+                    await nextTick();
+                    scrollToBottom();
+                } catch (error) {
+                    messages.value.push(createNoticeMessage(`导入失败：${error.message}`));
+                } finally {
+                    isModifying.value = false;
+                    event.target.value = '';
+                }
+            };
+
+            const exportDocument = async (format) => {
+                try {
+                    const response = await fetch(apiUrl('/api/document/export'), {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            format,
+                            content: contentHTML.value,
+                            filename: documentTitle.value.replace(/\.[^.]+$/, '') || 'moss-document'
+                        })
+                    });
+                    if (!response.ok) throw new Error(await response.text());
+                    const blob = await response.blob();
+                    const disposition = response.headers.get('Content-Disposition') || '';
+                    const match = disposition.match(/filename="([^"]+)"/);
+                    downloadBlob(blob, match?.[1] || `moss-document.${format === 'markdown' ? 'md' : format}`);
+                } catch (error) {
+                    messages.value.push(createNoticeMessage(`导出失败：${error.message}`));
+                    await nextTick();
+                    scrollToBottom();
+                }
+            };
+
+            const downloadBlob = (blob, filename) => {
+                const url = URL.createObjectURL(blob);
+                const anchor = document.createElement('a');
+                anchor.href = url;
+                anchor.download = filename;
+                document.body.appendChild(anchor);
+                anchor.click();
+                anchor.remove();
+                URL.revokeObjectURL(url);
+            };
+
+            const openAIPopup = () => {
+                if (!tiptapEditor) return;
+                if (!tiptapEditor.isFocused) tiptapEditor.commands.focus();
+
+                const { from } = tiptapEditor.state.selection;
+                const coords = tiptapEditor.view.coordsAtPos(from);
+                const popupWidth = 320;
+
+                aiPopupPos.value = {
+                    top: Math.min(coords.bottom + 10, window.innerHeight - 64),
+                    left: Math.max(16, Math.min(coords.left, window.innerWidth - popupWidth - 16))
+                };
+
+                showAIPopup.value = true;
+                nextTick(() => {
+                    if (aiPopupInputRef.value) aiPopupInputRef.value.focus();
+                });
+            };
+
+            const closeAIPopup = () => {
+                showAIPopup.value = false;
+                aiPopupInput.value = '';
+                if (tiptapEditor) tiptapEditor.commands.focus();
+            };
+
+            const submitAIPopup = () => {
+                if (!aiPopupInput.value.trim()) return;
+                const cmd = aiPopupInput.value.trim();
+                updateLastFocusAnchor();
+                closeAIPopup();
+                inputText.value = cmd;
+                sendMessage();
+            };
+
+            const getActiveElementId = () => {
+                if (!tiptapEditor) return null;
+                const { from, $from } = tiptapEditor.state.selection;
+                for (let depth = $from.depth; depth >= 0; depth -= 1) {
+                    const node = $from.node(depth);
+                    if (node?.attrs?.id) return node.attrs.id;
+                }
+
+                let domNode = tiptapEditor.view.domAtPos(from).node;
+                if (domNode.nodeType === window.Node.TEXT_NODE) domNode = domNode.parentElement;
+                return domNode?.closest?.('[id]')?.id || null;
+            };
+
+            const scrollToTarget = (targetId) => {
+                const container = document.getElementById('document-container');
+                const target = document.getElementById(targetId);
+                if (container && target) {
+                    container.scrollTo({ top: target.offsetTop - 20, behavior: 'smooth' });
+                }
+            };
+
+            const highlightTarget = (targetId) => {
+                if (!tiptapEditor || !targetId) return;
+                let targetPos = null;
+                let originalClasses = '';
+
+                tiptapEditor.state.doc.descendants((node, pos) => {
+                    if (node.attrs.id === targetId) {
+                        targetPos = pos;
+                        originalClasses = node.attrs.class || '';
+                    }
+                });
+
+                if (targetPos !== null) {
+                    const node = tiptapEditor.state.doc.nodeAt(targetPos);
+                    tiptapEditor.view.dispatch(
+                        tiptapEditor.state.tr.setNodeMarkup(targetPos, undefined, {
+                            ...node.attrs,
+                            class: `${originalClasses} bg-blue-50`.trim()
+                        })
+                    );
+
+                    setTimeout(() => {
+                        const currentNode = tiptapEditor.state.doc.nodeAt(targetPos);
+                        if (!currentNode) return;
+                        tiptapEditor.view.dispatch(
+                            tiptapEditor.state.tr.setNodeMarkup(targetPos, undefined, {
+                                ...currentNode.attrs,
+                                class: originalClasses
+                            })
+                        );
+                    }, 2000);
+                }
+            };
+
+            const applyDomMutation = async (mutation) => {
+                const targetId = mutation.targetId || mutation.element_id || mutation.target_id;
+                const actionType = mutation.action_type || mutation.type || 'replace';
+                const newHTML = mutation.new_html || mutation.newHTML || '';
+                if (!targetId || !tiptapEditor) return;
+
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(`<div data-moss-root>${contentHTML.value}</div>`, 'text/html');
+                const root = doc.body.firstElementChild;
+                const target = findById(root, targetId);
+                const targetWasTopLevel = target?.parentElement === root;
+
+                if (!target && actionType !== 'insert') {
+                    messages.value.push(createNoticeMessage(`未找到目标节点：${targetId}`));
+                    return;
+                }
+
+                const holder = doc.createElement('div');
+                holder.innerHTML = newHTML;
+                const nodes = Array.from(holder.childNodes);
+                const replacementElements = nodes.filter(node => node.nodeType === window.Node.ELEMENT_NODE);
+                if (actionType === 'replace' && targetWasTopLevel && replacementElements.length && !replacementElements.some(node => node.id === targetId)) {
+                    replacementElements[0].id = targetId;
+                }
+
+                if (actionType === 'delete') {
+                    target.remove();
+                } else if (actionType === 'append') {
+                    target.append(...nodes);
+                } else if (actionType === 'insert') {
+                    if (target) {
+                        target.after(...nodes);
+                    } else {
+                        root.append(...nodes);
+                    }
+                } else {
+                    if (nodes.length) {
+                        target.replaceWith(...nodes);
+                    }
+                }
+
+                contentHTML.value = root.innerHTML;
+                tiptapEditor.commands.setContent(contentHTML.value);
+                ensureTopLevelBlockIds();
+                scheduleDocumentOutlineRefresh();
+                await persistNoteSnapshot({ immediate: true }).catch(() => {});
+
+                await nextTick();
+                setTimeout(() => {
+                    if (actionType !== 'delete') {
+                        scrollToTarget(targetId);
+                        highlightTarget(targetId);
+                    }
+                }, 80);
+            };
+
+            const findById = (root, id) => {
+                const escaped = String(id).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+                return root.querySelector(`[id="${escaped}"]`);
+            };
+
+            const outlineIndentClass = (level) => {
+                if (level === 2) return 'pl-5';
+                if (level === 3) return 'pl-8';
+                return 'pl-2';
+            };
+
+            const isActiveOutlineItem = (item) => {
+                return Boolean(item?.id && item.id === activeOutlineId.value);
+            };
+
+            const ensureDocumentOutlineHeadingIds = () => {
+                if (!tiptapEditor) return;
+
+                const ids = collectEditorIds();
+                const seenHeadingIds = new Set();
+                let tr = tiptapEditor.state.tr;
+
+                tiptapEditor.state.doc.descendants((node, pos) => {
+                    if (node.type?.name !== 'heading' || !nodeSupportsAttr(node, 'id')) return;
+
+                    const currentId = node.attrs?.id ? String(node.attrs.id) : '';
+                    const needsGeneratedId = !currentId
+                        || currentId.startsWith(MOSS_TEMP_ANCHOR_PREFIX)
+                        || seenHeadingIds.has(currentId);
+
+                    if (!needsGeneratedId) {
+                        seenHeadingIds.add(currentId);
+                        return;
+                    }
+
+                    const nextId = createUniqueEditorId(MOSS_BLOCK_ID_PREFIX, ids);
+                    seenHeadingIds.add(nextId);
+                    tr = tr.setNodeMarkup(pos, undefined, {
+                        ...node.attrs,
+                        id: nextId
+                    });
+                });
+
+                if (!tr.docChanged) return;
+                tiptapEditor.view.dispatch(tr);
+                contentHTML.value = tiptapEditor.getHTML();
+                refreshTopLevelSignature();
+            };
+
+            const refreshDocumentOutline = () => {
+                outlineScrollSpacerHeight.value = 0;
+                const container = document.getElementById('document-container');
+                if (!container) {
+                    documentOutline.value = [];
+                    activeOutlineId.value = '';
+                    return;
+                }
+
+                ensureDocumentOutlineHeadingIds();
+
+                const headings = Array.from(container.querySelectorAll('h1, h2, h3'));
+                const nextOutline = headings
+                    .map((heading) => {
+                        const level = Number.parseInt(heading.tagName.slice(1), 10);
+                        const text = heading.textContent?.trim() || '';
+                        const id = heading.id || '';
+                        if (!id || !text) return null;
+                        return { id, text, level };
+                    })
+                    .filter(Boolean);
+
+                documentOutline.value = nextOutline;
+                if (activeOutlineId.value && !nextOutline.some(item => item.id === activeOutlineId.value)) {
+                    activeOutlineId.value = nextOutline[0]?.id || '';
+                }
+                updateOutlineLayout();
+                updateActiveOutline();
+            };
+
+            const scheduleDocumentOutlineRefresh = () => {
+                if (outlineRefreshFrame) return;
+                outlineRefreshFrame = window.requestAnimationFrame(async () => {
+                    outlineRefreshFrame = 0;
+                    await nextTick();
+                    refreshDocumentOutline();
+                });
+            };
+
+            const updateActiveOutline = () => {
+                const container = document.getElementById('document-container');
+                if (!container || !documentOutline.value.length) {
+                    activeOutlineId.value = '';
+                    return;
+                }
+
+                const containerRect = container.getBoundingClientRect();
+                const activationOffset = 72;
+                let activeItem = documentOutline.value[0];
+
+                for (const item of documentOutline.value) {
+                    const heading = document.getElementById(item.id);
+                    if (!heading) continue;
+                    const headingTop = heading.getBoundingClientRect().top - containerRect.top;
+                    if (headingTop <= activationOffset) {
+                        activeItem = item;
+                    } else {
+                        break;
+                    }
+                }
+
+                activeOutlineId.value = activeItem?.id || '';
+            };
+
+            const updateOutlineLayout = () => {
+                const panelRect = panelRef.value?.getBoundingClientRect?.();
+                if (!panelRect) {
+                    outlineStyle.value = {
+                        left: '1rem',
+                        top: '5.5rem',
+                        width: '14.75rem',
+                        maxHeight: 'calc(100vh - 8rem)',
+                        zIndex: 1000
+                    };
+                    return;
+                }
+
+                const pagePadding = 12;
+                const preferredOutlineWidth = 236;
+                const minOutlineWidth = 196;
+                const outlineWidth = Math.min(preferredOutlineWidth, Math.max(minOutlineWidth, window.innerWidth - pagePadding * 2));
+                const rightSpace = Math.max(0, window.innerWidth - panelRect.right);
+                const hasExternalRightSpace = rightSpace >= outlineWidth + pagePadding * 2;
+                const left = hasExternalRightSpace
+                    ? panelRect.right + (rightSpace - outlineWidth) / 2
+                    : window.innerWidth - outlineWidth - pagePadding;
+                const top = 88;
+                const bottomLimit = window.innerHeight - 96;
+                const maxHeight = Math.max(160, bottomLimit - top);
+
+                outlineStyle.value = {
+                    left: `${Math.max(pagePadding, left)}px`,
+                    top: `${top}px`,
+                    width: `${outlineWidth}px`,
+                    maxHeight: `${maxHeight}px`,
+                    zIndex: 1000
+                };
+            };
+
+            const ensureOutlineScrollRoom = async (container, targetTop) => {
+                const missingHeight = targetTop + container.clientHeight - container.scrollHeight;
+                if (missingHeight <= 0) return;
+
+                outlineScrollSpacerHeight.value += Math.ceil(missingHeight) + 24;
+                await nextTick();
+            };
+
+            const scrollToOutlineItem = async (item) => {
+                if (!item?.id) return;
+
+                const container = document.getElementById('document-container');
+                const target = document.getElementById(item.id);
+                if (!container || !target) {
+                    refreshDocumentOutline();
+                    return;
+                }
+
+                activeOutlineId.value = item.id;
+                const containerRect = container.getBoundingClientRect();
+                const targetTop = container.scrollTop + target.getBoundingClientRect().top - containerRect.top - 24;
+                await ensureOutlineScrollRoom(container, targetTop);
+                container.scrollTo({
+                    top: Math.max(0, targetTop),
+                    behavior: 'smooth'
+                });
+            };
+
+            const openDocumentOutline = () => {
+                showDocumentOutline.value = true;
+                refreshDocumentOutline();
+            };
+
+            const closeDocumentOutline = () => {
+                showDocumentOutline.value = false;
+            };
+
+            const toggleDocumentOutline = () => {
+                if (showDocumentOutline.value) {
+                    closeDocumentOutline();
+                    return;
+                }
+                openDocumentOutline();
+            };
+
+            const handleConversationMenuPointerDown = (event) => {
+                if (!openConversationMenuId.value) return;
+                const target = event.target;
+                if (target?.closest?.('.conversation-dropdown-menu')) return;
+                if (conversationTreePanelRef.value?.contains?.(target)) return;
+                closeConversationMenu();
+            };
+
+            const handleKeyDown = (e) => {
+                const activeTag = document.activeElement?.tagName;
+                const isInputFocused = activeTag === 'INPUT' || activeTag === 'TEXTAREA';
+
+                if (e.key === 'Escape' && openConversationMenuId.value) {
+                    closeConversationMenu();
+                    return;
+                }
+
+                if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
+                    e.preventDefault();
+                    saveContent();
+                }
+                if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'f' || e.key === 'F')) {
+                    e.preventDefault();
+                    toggleFullScreen();
+                }
+
+                if (isInputFocused && !showAIPopup.value) return;
+                if (!tiptapEditor) return;
+
+                if ((e.ctrlKey || e.metaKey) && e.key === '/') {
+                    e.preventDefault();
+                    openAIPopup();
+                }
+
+                if ((e.ctrlKey || e.metaKey) && e.key >= '1' && e.key <= '6') {
+                    e.preventDefault();
+                    tiptapEditor.commands.toggleHeading({ level: parseInt(e.key, 10) });
+                }
+
+                if ((e.ctrlKey || e.metaKey) && (e.key === '=' || e.key === '+')) {
+                    e.preventDefault();
+                    if (tiptapEditor.isActive('heading')) {
+                        const currentLevel = tiptapEditor.getAttributes('heading').level;
+                        if (currentLevel > 1) tiptapEditor.commands.setHeading({ level: currentLevel - 1 });
+                    } else {
+                        tiptapEditor.commands.setHeading({ level: 6 });
+                    }
+                }
+
+                if ((e.ctrlKey || e.metaKey) && e.key === '-') {
+                    e.preventDefault();
+                    if (tiptapEditor.isActive('heading')) {
+                        const currentLevel = tiptapEditor.getAttributes('heading').level;
+                        if (currentLevel < 6) {
+                            tiptapEditor.commands.setHeading({ level: currentLevel + 1 });
+                        } else {
+                            tiptapEditor.commands.setParagraph();
+                        }
+                    }
+                }
+            };
+
+            const sendMessage = async (explicitFocusId = null) => {
+                if (!inputText.value.trim() || isModifying.value) return;
+
+                const currentInput = inputText.value.trim();
+                let requestAnchors = null;
+                resetWaitingStages();
+                messages.value.push({ role: 'user', content: currentInput });
+                inputText.value = '';
+                await nextTick();
+                adjustInputTextareaHeight();
+                scrollToBottom();
+
+                isThinking.value = true;
+                isModifying.value = true;
+                let aiIndex = -1;
+                let noticeGenerated = false;
+                let pendingTaskType = '';
+
+                const ensureAiMessage = async () => {
+                    if (aiIndex >= 0) return;
+                    messages.value.push(createAnswerMessage('', pendingTaskType));
+                    aiIndex = messages.value.length - 1;
+                    isThinking.value = false;
+                    await nextTick();
+                };
+
+                try {
+                    if (!currentNoteId.value || !currentConversationId.value) {
+                        const draftSnapshot = tiptapEditor ? tiptapEditor.getHTML() : contentHTML.value;
+                        contentHTML.value = draftSnapshot;
+                    }
+                    requestAnchors = prepareAgentRequestAnchors(explicitFocusId);
+                    await ensurePersistedNote(requestAnchors.canvasSnapshot, { allowBlank: true });
+                    const response = await fetch(apiUrl('/api/v1/chat-stream'), {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            session_id: sessionId,
+                            note_id: currentNoteId.value,
+                            conversation_id: currentConversationId.value,
+                            user_input: currentInput,
+                            focus_element_id: requestAnchors.focusElementId,
+                            focus_block_id: requestAnchors.focusBlockId,
+                            canvas_snapshot: requestAnchors.canvasSnapshot
+                        })
+                    });
+
+                    if (!response.ok || !response.body) {
+                        throw new Error(await response.text());
+                    }
+
+                    await readEventStream(response, async ({ event, data }) => {
+                        if (event === 'conversation' && data.conversation_id) {
+                            setCurrentConversationId(data.conversation_id);
+                        }
+
+                        if (event === 'node_start') {
+                            startWaitingStage(data.node);
+                        }
+
+                        if (event === 'node_end') {
+                            completeWaitingStage(data.node);
+                        }
+
+                        if (event === 'node_end' && data.node === 'intent') {
+                            const taskType = normalizeTaskType(data.output?.task_type);
+                            if (taskType) {
+                                pendingTaskType = taskType;
+                                if (aiIndex >= 0) {
+                                    messages.value[aiIndex].taskType = taskType;
+                                }
+                            }
+                        }
+
+                        if (event === 'chat_chunk') {
+                            await ensureAiMessage();
+                            messages.value[aiIndex].content += data.content || '';
+                            await nextTick();
+                            scrollToBottom();
+                        }
+
+                        if (event === 'dom_mutation') {
+                            isDocumentModifying.value = true;
+                            await applyDomMutation(data);
+                        }
+
+                        if (event === 'error') {
+                            const message = data.message || '服务端处理失败';
+                            if (aiIndex >= 0) {
+                                messages.value[aiIndex].content += `\n${message}`;
+                            } else {
+                                messages.value.push(createNoticeMessage(message));
+                                noticeGenerated = true;
+                            }
+                        }
+                    });
+
+                    if (aiIndex < 0 && !noticeGenerated) {
+                        messages.value.push(createNoticeMessage('处理完成。'));
+                    }
+                } catch (error) {
+                    if (aiIndex < 0) {
+                        messages.value.push(createNoticeMessage(`连接失败：${error.message}`));
+                    } else {
+                        messages.value[aiIndex].content = `连接失败：${error.message}`;
+                    }
+                } finally {
+                    if (requestAnchors?.tempAnchorId) {
+                        cleanupTemporaryAnchors(requestAnchors.tempAnchorId);
+                        ensureTopLevelBlockIds();
+                    }
+                    isDocumentModifying.value = false;
+                    isThinking.value = false;
+                    isModifying.value = false;
+                    resetWaitingStages();
+                    if (currentNoteId.value) {
+                        await loadNoteConversations().catch(() => {});
+                    }
+                    await nextTick();
+                    scrollToBottom();
+                }
+            };
+
+            const readEventStream = async (response, onEvent) => {
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+                    buffer += decoder.decode(value, { stream: true });
+
+                    let boundary = buffer.indexOf('\n\n');
+                    while (boundary !== -1) {
+                        const frame = buffer.slice(0, boundary);
+                        buffer = buffer.slice(boundary + 2);
+                        const parsed = parseSseFrame(frame);
+                        if (parsed) await onEvent(parsed);
+                        boundary = buffer.indexOf('\n\n');
+                    }
+                }
+            };
+
+            const parseSseFrame = (frame) => {
+                let event = 'message';
+                const dataLines = [];
+                for (const line of frame.split(/\r?\n/)) {
+                    if (line.startsWith('event:')) event = line.slice(6).trim();
+                    if (line.startsWith('data:')) dataLines.push(line.slice(5).trimStart());
+                }
+                if (!dataLines.length) return { event, data: {} };
+                try {
+                    return { event, data: JSON.parse(dataLines.join('\n')) };
+                } catch {
+                    return { event, data: { content: dataLines.join('\n') } };
+                }
+            };
+
+            const toggleFullScreen = async () => {
+                isFullScreen.value = !isFullScreen.value;
+                await nextTick();
+                if (currentNoteId.value) updateConversationTreePosition();
+                updateOutlineLayout();
+                updateActiveOutline();
+            };
+
+            const startDragging = (e) => {
+                if (isFullScreen.value) return;
+
+                e.preventDefault();
+                window.getSelection?.().removeAllRanges();
+
+                isDragging.value = true;
+                startY.value = e.clientY;
+                startHeight.value = panelHeight.value;
+                document.addEventListener('mousemove', handleDragging);
+                document.addEventListener('mouseup', stopDragging);
+            };
+
+            const handleDragging = (e) => {
+                if (!isDragging.value) return;
+                let newHeight = startHeight.value + (e.clientY - startY.value);
+                const minHeight = 240;
+                const maxHeight = window.innerHeight - 150;
+                if (newHeight < minHeight) newHeight = minHeight;
+                if (newHeight > maxHeight) newHeight = maxHeight;
+                panelHeight.value = newHeight;
+                if (currentNoteId.value) updateConversationTreePosition();
+                updateOutlineLayout();
+            };
+
+            const stopDragging = () => {
+                isDragging.value = false;
+                document.removeEventListener('mousemove', handleDragging);
+                document.removeEventListener('mouseup', stopDragging);
+            };
+
+            const handleResize = () => {
+                const maxHeight = window.innerHeight - 150;
+                if (panelHeight.value > maxHeight) panelHeight.value = maxHeight;
+                if (currentNoteId.value) updateConversationTreePosition();
+                const openConversation = noteConversations.value.find(item => item.conversation_id === openConversationMenuId.value);
+                if (openConversation) updateConversationMenuPosition(openConversation);
+                adjustInputTextareaHeight();
+                updateOutlineLayout();
+                updateActiveOutline();
+            };
+
+            const openLibrary = async () => {
+                try {
+                    await flushAutosave();
+                } catch {}
+                window.location.href = '/library';
+            };
+
+            onMounted(async () => {
+                try {
+                    try {
+                        await loadCurrentNote();
+                    } catch (error) {
+                        noteLoadError.value = error.message || '加载笔记失败';
+                        messages.value.push(createNoticeMessage(`加载笔记失败：${noteLoadError.value}`));
+                        contentHTML.value = '<p></p>';
+                    }
+
+                    tiptapEditor = new Editor({
+                        element: editorContainer.value,
+                        extensions: [
+                            StarterKit,
+                            CustomDiv,
+                            GlobalAttributes
+                        ],
+                        content: contentHTML.value,
+                        editorProps: {
+                            attributes: {
+                                spellcheck: 'false',
+                            },
+                            handlePaste: () => {
+                                window.setTimeout(() => {
+                                    ensureTopLevelBlockIds();
+                                    updateLastFocusAnchor();
+                                }, 0);
+                                return false;
+                            }
+                        },
+                        onSelectionUpdate: () => {
+                            updateLastFocusAnchor();
+                        },
+                        onUpdate: ({ editor }) => {
+                            contentHTML.value = editor.getHTML();
+                            if (!isMaintainingDocumentIds) {
+                                queueAutosave();
+                                const signature = topLevelStructureSignature();
+                                if (signature !== lastTopLevelSignature) {
+                                    lastTopLevelSignature = signature;
+                                    queueTopLevelIdMaintenance();
+                                }
+                            }
+                            scheduleDocumentOutlineRefresh();
+                        }
+                    });
+                    cleanupTemporaryAnchors();
+                    ensureTopLevelBlockIds();
+                    refreshTopLevelSignature();
+
+                    await nextTick();
+                    adjustInputTextareaHeight();
+                    refreshDocumentOutline();
+
+                    const documentContainer = document.getElementById('document-container');
+                    if (documentContainer) documentContainer.addEventListener('scroll', updateActiveOutline, { passive: true });
+                    document.addEventListener('pointerdown', handleConversationMenuPointerDown);
+                    window.addEventListener('keydown', handleKeyDown);
+                    window.addEventListener('resize', handleResize);
+                } finally {
+                    hideInitialLoading();
+                }
+            });
+
+            onUnmounted(() => {
+                window.removeEventListener('keydown', handleKeyDown);
+                window.removeEventListener('resize', handleResize);
+                const documentContainer = document.getElementById('document-container');
+                documentContainer?.removeEventListener('scroll', updateActiveOutline);
+                document.removeEventListener('pointerdown', handleConversationMenuPointerDown);
+                document.removeEventListener('mousemove', handleDragging);
+                document.removeEventListener('mouseup', stopDragging);
+                if (autosaveTimer) window.clearTimeout(autosaveTimer);
+                if (outlineRefreshFrame) window.cancelAnimationFrame(outlineRefreshFrame);
+                tiptapEditor?.destroy();
+            });
+
+            return {
+                inputText,
+                inputTextareaRef,
+                adjustInputTextareaHeight,
+                allowTextareaNewline,
+                messages,
+                contentHTML,
+                isModifying,
+                isDocumentModifying,
+                isThinking,
+                waitingStages,
+                panelHeight,
+                sendMessage,
+                chatPaddingTop,
+                isDragging,
+                startDragging,
+                isFullScreen,
+                toggleFullScreen,
+                editorContainer,
+                documentBodyRef,
+                fileInputRef,
+                libraryButtonRef,
+                panelRef,
+                outlinePanelRef,
+                isSaving,
+                saveContent,
+                triggerUpload,
+                handleUpload,
+                exportDocument,
+                showAIPopup,
+                aiPopupPos,
+                aiPopupInput,
+                aiPopupInputRef,
+                submitAIPopup,
+                closeAIPopup,
+                documentTitle,
+                currentNoteId,
+                setCurrentNoteId,
+                currentConversationId,
+                setCurrentConversationId,
+                noteConversations,
+                isLoadingConversations,
+                isCreatingConversation,
+                isRenamingConversation,
+                isConversationActionBusy,
+                editingConversationId,
+                renameConversationDraft,
+                conversationError,
+                hoveredConversationId,
+                openConversationMenuId,
+                deleteConversationTarget,
+                conversationMenuStyle,
+                showConversationTree,
+                conversationTreeRef,
+                conversationTreePanelRef,
+                conversationTreeStyle,
+                isConversationTreeCompact,
+                documentOutline,
+                activeOutlineId,
+                showDocumentOutline,
+                outlineScrollSpacerHeight,
+                outlineStyle,
+                outlineIndentClass,
+                isActiveOutlineItem,
+                openDocumentOutline,
+                closeDocumentOutline,
+                toggleDocumentOutline,
+                scrollToOutlineItem,
+                openConversationTree,
+                toggleConversationTree,
+                closeConversationTree,
+                createConversation,
+                switchConversation,
+                startRenameConversation,
+                cancelRenameConversation,
+                saveConversationTitle,
+                toggleConversationPinned,
+                startDeleteConversation,
+                cancelDeleteConversation,
+                confirmDeleteConversation,
+                conversationTitle,
+                currentConversationTitle,
+                isCurrentConversation,
+                conversationStatusIcon,
+                conversationActionIcon,
+                handleConversationRowLeave,
+                toggleConversationMenu,
+                saveStatus,
+                noteLoadError,
+                openLibrary,
+                renderMarkdown,
+                isAnswerMessage,
+                getTaskTypeLabel,
+                copyMessage,
+                copiedMessageIndex
+            };
+        }
+    }).mount('#app');
+</script>
+</body>
+</html>
